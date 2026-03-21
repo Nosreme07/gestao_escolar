@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "743256134588",
+    "project_id": "gestao-escola-b6b96",
+    "storage_bucket": "gestao-escola-b6b96.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:743256134588:android:95dc8d6d3d34b2ed0e91b9",
+        "android_client_info": {
+          "package_name": "com.example.gestao_escolar"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDS7gJF5aw6Md-LcXAJZk1mLwV_T4FZUNI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:743256134588:android:048d641c0b2e5e910e91b9",
+        "android_client_info": {
+          "package_name": "gestao.escola"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDS7gJF5aw6Md-LcXAJZk1mLwV_T4FZUNI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
