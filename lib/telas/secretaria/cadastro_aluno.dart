@@ -1,12 +1,21 @@
-import 'dart:typed_data'; // <-- IMPORT ADICIONADO PARA LER A IMAGEM
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:gestao_escolar/nucleo/cores.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart'; // <-- IMPORT DO IMAGE PICKER ADICIONADO
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class CadastroAlunoTela extends StatefulWidget {
-  const CadastroAlunoTela({super.key});
+  // Parâmetros com "?" para aceitar vazio (Novo Aluno) ou preenchido (Editar)
+  final String? alunoIdAEditar;
+  final Map<String, dynamic>? alunoDataAEditar;
+
+  const CadastroAlunoTela({
+    super.key,
+    this.alunoIdAEditar,
+    this.alunoDataAEditar,
+  });
 
   @override
   State<CadastroAlunoTela> createState() => _CadastroAlunoTelaState();
@@ -15,7 +24,7 @@ class CadastroAlunoTela extends StatefulWidget {
 class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   int _passoAtual = 0;
 
-  // --- CONFIGURAÇÃO DAS MÁSCARAS ---
+  // --- MÁSCARAS ---
   final _mascaraData = MaskTextInputFormatter(
     mask: '##/##/####',
     filter: {"#": RegExp(r'[0-9]')},
@@ -31,20 +40,18 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
 
   // --- VARIÁVEIS DA FOTO ---
   final ImagePicker _selecionadorImagem = ImagePicker();
-  Uint8List?
-  _imagemBytes; // Usamos Uint8List pois funciona bem na Web e no Celular
+  Uint8List? _imagemBytes;
+  String? _fotoUrlExistente;
 
-  // --- CONTROLADORES: PASSO 1 (Identificação) ---
+  // --- CONTROLADORES ---
   final _nomeAlunoCtrl = TextEditingController();
   final _dataNascCtrl = TextEditingController();
   String _sexo = 'Masculino';
   String? _turmaSelecionada;
   String? _turnoSelecionado;
-
   bool _temIrmao = false;
   String? _irmaoSelecionado;
 
-  // Listas para os Dropdowns
   final List<String> _turmas = [
     'Maternal',
     'Jardim I',
@@ -68,64 +75,133 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     '2025089 - Maria Souza',
   ];
 
-  // --- CONTROLADORES: PASSO 2 (Endereço) ---
   final _ruaCtrl = TextEditingController();
   final _numeroCtrl = TextEditingController();
   final _bairroCtrl = TextEditingController();
   final _cidadeCtrl = TextEditingController();
 
-  // --- CONTROLADORES: PASSO 3 (Responsáveis) ---
   String _responsavelFinanceiro = 'Mãe';
   bool _podeSairSozinho = false;
-
   final _nomeMaeCtrl = TextEditingController();
   final _cpfMaeCtrl = TextEditingController();
   final _telMaeCtrl = TextEditingController();
   final _emailMaeCtrl = TextEditingController();
-
   final _nomePaiCtrl = TextEditingController();
   final _cpfPaiCtrl = TextEditingController();
   final _telPaiCtrl = TextEditingController();
   final _emailPaiCtrl = TextEditingController();
 
-  // --- CONTROLADORES: PASSO 4 (Saúde e Emergência) ---
   bool _temProblemaSaude = false;
   final _problemaSaudeCtrl = TextEditingController();
-
   bool _tomaMedicamento = false;
   final _medicamentoCtrl = TextEditingController();
-
   bool _temAlergia = false;
   final _alergiaCtrl = TextEditingController();
-
   final _observacaoSaudeCtrl = TextEditingController();
-
   final _emergenciaNome1Ctrl = TextEditingController();
   final _emergenciaTel1Ctrl = TextEditingController();
   final _emergenciaNome2Ctrl = TextEditingController();
   final _emergenciaTel2Ctrl = TextEditingController();
 
   // ==========================================
-  // FUNÇÕES DA CÂMERA E GALERIA
+  // INIT STATE: PREENCHE TUDO NA EDIÇÃO
+  // ==========================================
+  @override
+  void initState() {
+    super.initState();
+    _carregarDadosParaEdicao();
+  }
+
+  void _carregarDadosParaEdicao() {
+    if (widget.alunoDataAEditar != null &&
+        widget.alunoDataAEditar!.isNotEmpty) {
+      final dados = widget.alunoDataAEditar!;
+
+      // Textos simples
+      _nomeAlunoCtrl.text = dados['nomeCompleto'] ?? '';
+      _dataNascCtrl.text = dados['dataNascimento'] ?? '';
+
+      // Atualiza variáveis de UI dentro do setState para a tela reagir na hora
+      setState(() {
+        _sexo = dados['sexo'] ?? 'Masculino';
+        if (_turmas.contains(dados['turma']))
+          _turmaSelecionada = dados['turma'];
+        if (_turnos.contains(dados['turno']))
+          _turnoSelecionado = dados['turno'];
+        _temIrmao = dados['temIrmaoNaEscola'] ?? false;
+        _fotoUrlExistente = dados['fotoUrl'];
+      });
+
+      final endereco = dados['endereco'] ?? {};
+      _ruaCtrl.text = endereco['rua'] ?? '';
+      _numeroCtrl.text = endereco['numero'] ?? '';
+      _bairroCtrl.text = endereco['bairro'] ?? '';
+      _cidadeCtrl.text = endereco['cidade'] ?? '';
+
+      final responsaveis = dados['responsaveis'] ?? {};
+      setState(() {
+        _responsavelFinanceiro = responsaveis['responsavelFinanceiro'] ?? 'Mãe';
+        _podeSairSozinho = responsaveis['autorizadoSairSozinho'] ?? false;
+      });
+
+      final mae = responsaveis['mae'] ?? {};
+      _nomeMaeCtrl.text = mae['nome'] ?? '';
+      _cpfMaeCtrl.text = mae['cpf'] ?? '';
+      _telMaeCtrl.text = mae['telefone'] ?? '';
+      _emailMaeCtrl.text = mae['email'] ?? '';
+
+      final pai = responsaveis['pai'] ?? {};
+      _nomePaiCtrl.text = pai['nome'] ?? '';
+      _cpfPaiCtrl.text = pai['cpf'] ?? '';
+      _telPaiCtrl.text = pai['telefone'] ?? '';
+      _emailPaiCtrl.text = pai['email'] ?? '';
+
+      final saude = dados['saude'] ?? {};
+      setState(() {
+        _temProblemaSaude = saude['temProblemaSaude'] ?? false;
+        _tomaMedicamento = saude['tomaMedicamento'] ?? false;
+        _temAlergia = saude['temAlergia'] ?? false;
+      });
+
+      _problemaSaudeCtrl.text = saude['qualProblema'] ?? '';
+      _medicamentoCtrl.text = saude['qualMedicamento'] ?? '';
+      _alergiaCtrl.text = saude['qualAlergia'] ?? '';
+      _observacaoSaudeCtrl.text = saude['observacoes'] ?? '';
+
+      final emergencia = dados['emergencia'] as List<dynamic>?;
+      if (emergencia != null && emergencia.isNotEmpty) {
+        _emergenciaNome1Ctrl.text = emergencia[0]['nome'] ?? '';
+        _emergenciaTel1Ctrl.text = emergencia[0]['telefone'] ?? '';
+        if (emergencia.length > 1) {
+          _emergenciaNome2Ctrl.text = emergencia[1]['nome'] ?? '';
+          _emergenciaTel2Ctrl.text = emergencia[1]['telefone'] ?? '';
+        }
+      }
+    }
+  }
+
+  // ==========================================
+  // FUNÇÕES DA FOTO
   // ==========================================
   Future<void> _capturarImagem(ImageSource fonte) async {
     try {
       final XFile? imagem = await _selecionadorImagem.pickImage(
         source: fonte,
-        imageQuality: 70, // Reduz a qualidade para economizar espaço
+        imageQuality: 70,
       );
-
       if (imagem != null) {
-        // Lemos como bytes para garantir compatibilidade Web/Mobile
         final bytes = await imagem.readAsBytes();
         setState(() {
           _imagemBytes = bytes;
+          _fotoUrlExistente = null; // Remove a foto antiga se escolher uma nova
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao carregar a imagem: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar a imagem: $e')),
+        );
+      }
     }
   }
 
@@ -154,7 +230,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                   ),
                   title: const Text('Escolher da Galeria'),
                   onTap: () {
-                    Navigator.of(context).pop(); // Fecha o menu
+                    Navigator.pop(context);
                     _capturarImagem(ImageSource.gallery);
                   },
                 ),
@@ -165,11 +241,11 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                   ),
                   title: const Text('Tirar Foto (Câmera)'),
                   onTap: () {
-                    Navigator.of(context).pop(); // Fecha o menu
+                    Navigator.pop(context);
                     _capturarImagem(ImageSource.camera);
                   },
                 ),
-                if (_imagemBytes != null) ...[
+                if (_imagemBytes != null || _fotoUrlExistente != null) ...[
                   const Divider(),
                   ListTile(
                     leading: const Icon(Icons.delete, color: Colors.red),
@@ -178,9 +254,10 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                       style: TextStyle(color: Colors.red),
                     ),
                     onTap: () {
-                      Navigator.of(context).pop();
+                      Navigator.pop(context);
                       setState(() {
                         _imagemBytes = null;
+                        _fotoUrlExistente = null;
                       });
                     },
                   ),
@@ -193,11 +270,16 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     );
   }
 
+  // ==========================================
+  // INTERFACE
+  // ==========================================
   @override
   Widget build(BuildContext context) {
+    final bool isEdicao = widget.alunoIdAEditar != null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nova Matrícula'),
+        title: Text(isEdicao ? 'Editar Aluno' : 'Nova Matrícula'),
         backgroundColor: CoresDomex.azulPrincipal,
         foregroundColor: Colors.white,
       ),
@@ -207,11 +289,10 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         currentStep: _passoAtual,
         onStepTapped: (passo) => setState(() => _passoAtual = passo),
         onStepContinue: () {
-          if (_passoAtual < 3) {
+          if (_passoAtual < 3)
             setState(() => _passoAtual += 1);
-          } else {
+          else
             _mostrarPopupConfirmacao();
-          }
         },
         onStepCancel: () {
           if (_passoAtual > 0) setState(() => _passoAtual -= 1);
@@ -261,9 +342,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     );
   }
 
-  // ==========================================
-  // PASSO 1: IDENTIFICAÇÃO DO ALUNO
-  // ==========================================
   Step _construirPassoIdentificacao() {
     return Step(
       isActive: _passoAtual >= 0,
@@ -274,7 +352,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Área de Foto ATUALIZADA
           Center(
             child: InkWell(
               onTap: _mostrarOpcoesFoto,
@@ -284,22 +361,25 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                 width: 120,
                 decoration: BoxDecoration(
                   color: Colors.grey.shade200,
-                  border: Border.all(
-                    color: Colors.grey.shade400,
-                    style: BorderStyle.solid,
-                    width: 2,
-                  ),
+                  border: Border.all(color: Colors.grey.shade400, width: 2),
                   borderRadius: BorderRadius.circular(12),
-                  // Se tiver imagem, mostra ela no fundo
                   image: _imagemBytes != null
                       ? DecorationImage(
                           image: MemoryImage(_imagemBytes!),
                           fit: BoxFit.cover,
                         )
-                      : null,
+                      : (_fotoUrlExistente != null &&
+                                _fotoUrlExistente!.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(_fotoUrlExistente!),
+                                fit: BoxFit.cover,
+                              )
+                            : null),
                 ),
-                // Só mostra o ícone e o texto se a foto for NULA
-                child: _imagemBytes == null
+                child:
+                    _imagemBytes == null &&
+                        (_fotoUrlExistente == null ||
+                            _fotoUrlExistente!.isEmpty)
                     ? const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -312,18 +392,16 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                           ),
                         ],
                       )
-                    : null, // Se tem foto, o filho é nulo (fica só o fundo)
+                    : null,
               ),
             ),
           ),
           const SizedBox(height: 24),
-
           TextFormField(
             controller: _nomeAlunoCtrl,
             decoration: const InputDecoration(labelText: 'Nome Completo'),
           ),
           const SizedBox(height: 16),
-
           const Text(
             'Sexo:',
             style: TextStyle(color: Colors.grey, fontSize: 14),
@@ -333,20 +411,19 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
               Radio(
                 value: 'Masculino',
                 groupValue: _sexo,
-                onChanged: (val) => setState(() => _sexo = val.toString()),
+                onChanged: (v) => setState(() => _sexo = v.toString()),
               ),
               const Text('Masculino'),
               const SizedBox(width: 16),
               Radio(
                 value: 'Feminino',
                 groupValue: _sexo,
-                onChanged: (val) => setState(() => _sexo = val.toString()),
+                onChanged: (v) => setState(() => _sexo = v.toString()),
               ),
               const Text('Feminino'),
             ],
           ),
           const SizedBox(height: 12),
-
           TextFormField(
             controller: _dataNascCtrl,
             decoration: const InputDecoration(
@@ -356,27 +433,24 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
             inputFormatters: [_mascaraData],
           ),
           const SizedBox(height: 16),
-
           DropdownButtonFormField<String>(
             value: _turmaSelecionada,
             decoration: const InputDecoration(labelText: 'Turma'),
             items: _turmas
                 .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                 .toList(),
-            onChanged: (val) => setState(() => _turmaSelecionada = val),
+            onChanged: (v) => setState(() => _turmaSelecionada = v),
           ),
           const SizedBox(height: 16),
-
           DropdownButtonFormField<String>(
             value: _turnoSelecionado,
             decoration: const InputDecoration(labelText: 'Turno'),
             items: _turnos
                 .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                 .toList(),
-            onChanged: (val) => setState(() => _turnoSelecionado = val),
+            onChanged: (v) => setState(() => _turnoSelecionado = v),
           ),
           const SizedBox(height: 24),
-
           const Text(
             'O aluno tem algum irmão na escola?',
             style: TextStyle(color: Colors.grey, fontSize: 14),
@@ -386,14 +460,14 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
               Radio(
                 value: true,
                 groupValue: _temIrmao,
-                onChanged: (val) => setState(() => _temIrmao = val as bool),
+                onChanged: (v) => setState(() => _temIrmao = v as bool),
               ),
               const Text('Sim'),
               const SizedBox(width: 16),
               Radio(
                 value: false,
                 groupValue: _temIrmao,
-                onChanged: (val) => setState(() => _temIrmao = val as bool),
+                onChanged: (v) => setState(() => _temIrmao = v as bool),
               ),
               const Text('Não'),
             ],
@@ -408,7 +482,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
               items: _alunosCadastradosMock
                   .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                   .toList(),
-              onChanged: (val) => setState(() => _irmaoSelecionado = val),
+              onChanged: (v) => setState(() => _irmaoSelecionado = v),
             ),
           ],
         ],
@@ -416,9 +490,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     );
   }
 
-  // ==========================================
-  // PASSO 2: ENDEREÇO
-  // ==========================================
   Step _construirPassoEndereco() {
     return Step(
       isActive: _passoAtual >= 1,
@@ -462,9 +533,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     );
   }
 
-  // ==========================================
-  // PASSO 3: RESPONSÁVEIS E AUTORIZAÇÃO
-  // ==========================================
   Step _construirPassoResponsaveis() {
     return Step(
       isActive: _passoAtual >= 2,
@@ -511,7 +579,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
             ),
           ),
           const SizedBox(height: 24),
-
           const Text(
             'Dados da Mãe',
             style: TextStyle(
@@ -611,9 +678,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     );
   }
 
-  // ==========================================
-  // PASSO 4: FICHA MÉDICA E EMERGÊNCIA
-  // ==========================================
   Step _construirPassoSaude() {
     return Step(
       isActive: _passoAtual >= 3,
@@ -632,7 +696,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
             ),
           ),
           const Divider(),
-
           SwitchListTile(
             title: const Text('Possui problema de saúde?'),
             value: _temProblemaSaude,
@@ -737,99 +800,81 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     );
   }
 
-  // ==========================================
-  // TELA DE REVISÃO E SALVAMENTO NO FIREBASE
-  // ==========================================
   void _mostrarPopupConfirmacao() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text(
-            'Revisar Dados',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _linhaResumo('Aluno:', _nomeAlunoCtrl.text),
-                _linhaResumo('Nascimento:', _dataNascCtrl.text),
-                _linhaResumo('Turma:', _turmaSelecionada ?? 'Não definida'),
-                _linhaResumo('Turno:', _turnoSelecionado ?? 'Não definido'),
-                const Divider(),
-                _linhaResumo('Resp. Financeiro:', _responsavelFinanceiro),
-                _linhaResumo('Nome da Mãe:', _nomeMaeCtrl.text),
-                _linhaResumo('Nome do Pai:', _nomePaiCtrl.text),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('EDITAR', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: CoresDomex.verdeSucesso,
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _finalizarMatricula();
-              },
-              child: const Text('CONFIRMAR'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _linhaResumo(String titulo, String valor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6.0),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(color: Colors.black87, fontSize: 14),
-          children: [
-            TextSpan(
-              text: '$titulo ',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            TextSpan(text: valor.isEmpty ? 'Não informado' : valor),
-          ],
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          'Confirmar Dados',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        content: const Text('Deseja salvar as informações no sistema?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CoresDomex.verdeSucesso,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _finalizarMatricula();
+            },
+            child: const Text('SALVAR'),
+          ),
+        ],
       ),
     );
   }
 
+  // ==========================================
+  // SALVAMENTO NO FIREBASE (TEXTO E IMAGEM)
+  // ==========================================
   void _finalizarMatricula() async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
+      builder: (_) => const Center(
         child: CircularProgressIndicator(color: CoresDomex.azulPrincipal),
       ),
     );
 
     try {
-      final anoAtual = DateTime.now().year;
-      final sequencial = (DateTime.now().millisecondsSinceEpoch % 10000)
-          .toString()
-          .padLeft(4, '0');
-      final raGerado = "$anoAtual$sequencial";
-
+      final isEdicao = widget.alunoIdAEditar != null;
       final nomeAluno = _nomeAlunoCtrl.text.isEmpty
           ? "Aluno Sem Nome"
           : _nomeAlunoCtrl.text;
 
-      // ATENÇÃO: Se quiser salvar a foto (_imagemBytes) online, será necessário
-      // usar o Firebase Storage para fazer o upload do arquivo primeiro, e depois
-      // salvar a URL da imagem aqui no Firestore.
+      String docId = widget.alunoIdAEditar ?? "";
+      String raFinal = "";
 
+      // Geração de RA (se for novo)
+      if (!isEdicao) {
+        final anoAtual = DateTime.now().year;
+        final sequencial = (DateTime.now().millisecondsSinceEpoch % 10000)
+            .toString()
+            .padLeft(4, '0');
+        raFinal = "$anoAtual$sequencial";
+        docId = raFinal;
+      } else {
+        raFinal = widget.alunoDataAEditar?['ra'] ?? "";
+      }
+
+      // UPLOAD PARA O FIREBASE STORAGE
+      String? linkFotoFinal = _fotoUrlExistente;
+      if (_imagemBytes != null) {
+        final storageRef = FirebaseStorage.instance.ref().child(
+          'fotos_alunos/$docId.jpg',
+        );
+        await storageRef.putData(_imagemBytes!);
+        linkFotoFinal = await storageRef.getDownloadURL();
+      }
+
+      // MONTANDO O MAPA COMPLETO
       Map<String, dynamic> dadosAluno = {
-        'ra': raGerado,
+        'ra': raFinal,
         'nomeCompleto': nomeAluno,
         'dataNascimento': _dataNascCtrl.text,
         'sexo': _sexo,
@@ -837,6 +882,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         'turno': _turnoSelecionado,
         'temIrmaoNaEscola': _temIrmao,
         'irmaoVinculado': _irmaoSelecionado,
+        'fotoUrl': linkFotoFinal,
         'endereco': {
           'rua': _ruaCtrl.text,
           'numero': _numeroCtrl.text,
@@ -878,108 +924,38 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
             'telefone': _emergenciaTel2Ctrl.text,
           },
         ],
-        'dataMatricula': FieldValue.serverTimestamp(),
       };
 
-      await FirebaseFirestore.instance
-          .collection('alunos')
-          .doc(raGerado)
-          .set(dadosAluno);
-
-      if (mounted) Navigator.of(context).pop();
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Column(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: CoresDomex.verdeSucesso,
-                    size: 64,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Matrícula Concluída!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Os dados foram salvos no Firebase com sucesso.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Aluno(a):',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                  ),
-                  Text(
-                    nomeAluno,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Número da Matrícula (RA):',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      raGerado,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                        color: CoresDomex.azulPrincipal,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actionsAlignment: MainAxisAlignment.center,
-              actions: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: CoresDomex.azulPrincipal,
-                  ),
-                  child: const Text('VOLTAR AO PAINEL'),
-                ),
-              ],
-            );
-          },
-        );
+      // SALVANDO NO BANCO DE DADOS
+      if (isEdicao) {
+        await FirebaseFirestore.instance
+            .collection('alunos')
+            .doc(docId)
+            .update(dadosAluno);
+      } else {
+        dadosAluno['dataMatricula'] = FieldValue.serverTimestamp();
+        await FirebaseFirestore.instance
+            .collection('alunos')
+            .doc(docId)
+            .set(dadosAluno);
       }
+
+      if (!mounted) return;
+      Navigator.pop(context); // Tira o loading
+      Navigator.pop(context); // Volta pra lista de alunos
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Salvo com sucesso!'),
+          backgroundColor: CoresDomex.verdeSucesso,
+        ),
+      );
     } catch (e) {
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      Navigator.pop(context); // Tira o loading
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao salvar no Firebase: $e'),
+          content: Text('Erro ao salvar: $e'),
           backgroundColor: Colors.red,
         ),
       );

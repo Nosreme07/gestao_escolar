@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gestao_escolar/nucleo/cores.dart';
-import 'package:gestao_escolar/telas/secretaria/gerenciamento_alunos.dart';
-
-// Importações prontas para as suas novas pastas!
-// Descomente essas linhas conforme for criando os arquivos dentro de cada pasta.
-// import 'package:gestao_escolar/telas/painel_secretaria/inicio_secretaria_tela.dart';
-// import 'package:gestao_escolar/telas/painel_professor/inicio_professor_tela.dart';
-// import 'package:gestao_escolar/telas/painel_aluno/inicio_aluno_tela.dart';
-// import 'package:gestao_escolar/telas/painel_responsavel/inicio_responsavel_tela.dart';
+import 'package:gestao_escolar/telas/secretaria/tela_secretaria.dart';
 
 class TelaPrincipal extends StatelessWidget {
   const TelaPrincipal({super.key});
@@ -21,7 +14,6 @@ class TelaPrincipal extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // O BOTÃO DE PERFIL QUE VOCÊ PEDIU
           IconButton(
             icon: const Icon(Icons.account_circle, size: 30),
             tooltip: 'Meu Perfil',
@@ -56,12 +48,9 @@ class TelaPrincipal extends StatelessWidget {
               style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
             const SizedBox(height: 40),
-
-            // LISTA DOS 4 MÓDULOS (PASTAS)
             Expanded(
               child: ListView(
                 children: [
-                  // 1. MÓDULO SECRETARIA
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Secretaria',
@@ -69,72 +58,40 @@ class TelaPrincipal extends StatelessWidget {
                     icone: Icons.admin_panel_settings,
                     cor: CoresDomex.azulPrincipal,
                     aoClicar: () {
-                      // Removemos o SnackBar e colocamos a navegação real!
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const GerenciamentoAlunosTela(),
+                          builder: (_) => const TelaSecretaria(),
                         ),
                       );
                     },
                   ),
                   const SizedBox(height: 16),
-
-                  // 2. MÓDULO PROFESSOR
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Professor',
                     subtitulo: 'Diário de classe, notas e frequências',
                     icone: Icons.school,
                     cor: Colors.teal,
-                    aoClicar: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (_) => const InicioProfessorTela()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Navegando para o Painel do Professor...',
-                          ),
-                        ),
-                      );
-                    },
+                    aoClicar: () {},
                   ),
                   const SizedBox(height: 16),
-
-                  // 3. MÓDULO ALUNO
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Aluno',
                     subtitulo: 'Meu boletim, horários e atividades',
                     icone: Icons.face,
                     cor: CoresDomex.laranjaAcao,
-                    aoClicar: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (_) => const InicioAlunoTela()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Navegando para o Painel do Aluno...'),
-                        ),
-                      );
-                    },
+                    aoClicar: () {},
                   ),
                   const SizedBox(height: 16),
-
-                  // 4. MÓDULO RESPONSÁVEL
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Responsável pelo Aluno',
                     subtitulo: 'Acompanhamento escolar e financeiro',
                     icone: Icons.family_restroom,
                     cor: Colors.purple,
-                    aoClicar: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (_) => const InicioResponsavelTela()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Navegando para o Painel do Responsável...',
-                          ),
-                        ),
-                      );
-                    },
+                    aoClicar: () {},
                   ),
                 ],
               ),
@@ -145,7 +102,6 @@ class TelaPrincipal extends StatelessWidget {
     );
   }
 
-  // Widget reutilizável para deixar os 4 botões com um visual padrão, limpo e elegante
   Widget _construirBotaoPerfil(
     BuildContext context, {
     required String titulo,
@@ -165,7 +121,8 @@ class TelaPrincipal extends StatelessWidget {
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              // Correção do aviso azul aqui:
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -176,7 +133,8 @@ class TelaPrincipal extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: cor.withOpacity(0.1),
+                // E correção aqui também:
+                color: cor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(icone, size: 32, color: cor),
