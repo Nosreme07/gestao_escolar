@@ -1,13 +1,15 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:gestao_escolar/nucleo/cores.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_cropper/image_cropper.dart'; // PACOTE DE ENQUADRAMENTO
+
+// Certifique-se de que o caminho para as suas cores está correto!
+import 'package:gestao_escolar/nucleo/cores.dart';
 
 class CadastroAlunoTela extends StatefulWidget {
-  // Parâmetros com "?" para aceitar vazio (Novo Aluno) ou preenchido (Editar)
   final String? alunoIdAEditar;
   final Map<String, dynamic>? alunoDataAEditar;
 
@@ -23,6 +25,7 @@ class CadastroAlunoTela extends StatefulWidget {
 
 class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   int _passoAtual = 0;
+  bool _estaSalvando = false;
 
   // --- MÁSCARAS ---
   final _mascaraData = MaskTextInputFormatter(
@@ -43,7 +46,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   Uint8List? _imagemBytes;
   String? _fotoUrlExistente;
 
-  // --- CONTROLADORES ---
+  // --- CONTROLADORES E VARIÁVEIS ---
   final _nomeAlunoCtrl = TextEditingController();
   final _dataNascCtrl = TextEditingController();
   String _sexo = 'Masculino';
@@ -70,6 +73,8 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     '3º Ano (Ens. Médio)',
   ];
   final List<String> _turnos = ['Manhã', 'Tarde', 'Noite'];
+
+  // Lista temporária (idealmente puxada do Firebase)
   final List<String> _alunosCadastradosMock = [
     '2025001 - João Silva',
     '2025089 - Maria Souza',
@@ -103,9 +108,8 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   final _emergenciaNome2Ctrl = TextEditingController();
   final _emergenciaTel2Ctrl = TextEditingController();
 
-  // ==========================================
-  // INIT STATE: PREENCHE TUDO NA EDIÇÃO
-  // ==========================================
+  bool get isEdicao => widget.alunoIdAEditar != null;
+
   @override
   void initState() {
     super.initState();
@@ -117,11 +121,9 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         widget.alunoDataAEditar!.isNotEmpty) {
       final dados = widget.alunoDataAEditar!;
 
-      // Textos simples
       _nomeAlunoCtrl.text = dados['nomeCompleto'] ?? '';
       _dataNascCtrl.text = dados['dataNascimento'] ?? '';
 
-      // Atualiza variáveis de UI dentro do setState para a tela reagir na hora
       setState(() {
         _sexo = dados['sexo'] ?? 'Masculino';
         if (_turmas.contains(dados['turma']))
@@ -181,20 +183,47 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   }
 
   // ==========================================
-  // FUNÇÕES DA FOTO
+  // FUNÇÕES DE FOTO COM ENQUADRAMENTO (CROP)
   // ==========================================
   Future<void> _capturarImagem(ImageSource fonte) async {
     try {
       final XFile? imagem = await _selecionadorImagem.pickImage(
         source: fonte,
-        imageQuality: 70,
+        imageQuality: 80,
       );
+
       if (imagem != null) {
-        final bytes = await imagem.readAsBytes();
-        setState(() {
-          _imagemBytes = bytes;
-          _fotoUrlExistente = null; // Remove a foto antiga se escolher uma nova
-        });
+        // NOVO: Chama a tela de recorte antes de salvar
+        CroppedFile? imagemCortada = await ImageCropper().cropImage(
+          sourcePath: imagem.path,
+          aspectRatio: const CropAspectRatio(
+            ratioX: 1,
+            ratioY: 1,
+          ), // Obriga a ser quadrado
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Enquadrar Foto',
+              toolbarColor: Colors.blue[900],
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+              hideBottomControls: false,
+            ),
+            IOSUiSettings(
+              title: 'Enquadrar Foto',
+              aspectRatioLockEnabled: true,
+            ),
+            WebUiSettings(context: context),
+          ],
+        );
+
+        if (imagemCortada != null) {
+          final bytes = await imagemCortada.readAsBytes();
+          setState(() {
+            _imagemBytes = bytes;
+            _fotoUrlExistente = null; // Remove a antiga
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -224,22 +253,16 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                 ),
                 const SizedBox(height: 16),
                 ListTile(
-                  leading: const Icon(
-                    Icons.photo_library,
-                    color: CoresDomex.azulPrincipal,
-                  ),
-                  title: const Text('Escolher da Galeria'),
+                  leading: const Icon(Icons.photo_library, color: Colors.blue),
+                  title: const Text('Escolher da Galeria e Recortar'),
                   onTap: () {
                     Navigator.pop(context);
                     _capturarImagem(ImageSource.gallery);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(
-                    Icons.camera_alt,
-                    color: CoresDomex.azulPrincipal,
-                  ),
-                  title: const Text('Tirar Foto (Câmera)'),
+                  leading: const Icon(Icons.camera_alt, color: Colors.blue),
+                  title: const Text('Tirar Foto e Recortar'),
                   onTap: () {
                     Navigator.pop(context);
                     _capturarImagem(ImageSource.camera);
@@ -275,24 +298,56 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   // ==========================================
   @override
   Widget build(BuildContext context) {
-    final bool isEdicao = widget.alunoIdAEditar != null;
-
     return Scaffold(
       appBar: AppBar(
         title: Text(isEdicao ? 'Editar Aluno' : 'Nova Matrícula'),
-        backgroundColor: CoresDomex.azulPrincipal,
+        backgroundColor: Colors.blue[900], // CoresDomex.azulPrincipal
         foregroundColor: Colors.white,
       ),
+      // BOTÃO FIXO DE SALVAR (Apenas no modo Edição)
+      bottomNavigationBar: isEdicao
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green, // CoresDomex.verdeSucesso
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  onPressed: _estaSalvando ? null : _finalizarMatricula,
+                  icon: _estaSalvando
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.save, color: Colors.white),
+                  label: const Text(
+                    'SALVAR ALTERAÇÕES',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: Stepper(
         type: StepperType.vertical,
         physics: const ClampingScrollPhysics(),
         currentStep: _passoAtual,
         onStepTapped: (passo) => setState(() => _passoAtual = passo),
         onStepContinue: () {
-          if (_passoAtual < 3)
+          if (_passoAtual < 3) {
             setState(() => _passoAtual += 1);
-          else
+          } else {
             _mostrarPopupConfirmacao();
+          }
         },
         onStepCancel: () {
           if (_passoAtual > 0) setState(() => _passoAtual -= 1);
@@ -308,13 +363,18 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                     onPressed: details.onStepContinue,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isUltimo
-                          ? CoresDomex.verdeSucesso
-                          : CoresDomex.azulPrincipal,
+                          ? Colors.green
+                          : Colors.blue[900],
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                     child: Text(
-                      isUltimo ? 'REVISAR E SALVAR' : 'PRÓXIMO PASSO',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      isUltimo
+                          ? (isEdicao ? 'IR PARA O FIM' : 'REVISAR E SALVAR')
+                          : 'PRÓXIMO PASSO',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -383,7 +443,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
                     ? const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_a_photo, color: Colors.grey, size: 32),
+                          Icon(Icons.crop_free, color: Colors.grey, size: 32),
                           SizedBox(height: 8),
                           Text(
                             'Anexar Foto\n(Toque aqui)',
@@ -581,10 +641,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
           const SizedBox(height: 24),
           const Text(
             'Dados da Mãe',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: CoresDomex.azulPrincipal,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
           ),
           const Divider(),
           TextFormField(
@@ -619,10 +676,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
 
           const Text(
             'Dados do Pai',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: CoresDomex.azulPrincipal,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
           ),
           const Divider(),
           TextFormField(
@@ -690,10 +744,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         children: [
           const Text(
             'Ficha Médica',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: CoresDomex.azulPrincipal,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
           ),
           const Divider(),
           SwitchListTile(
@@ -815,14 +866,12 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
             child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: CoresDomex.verdeSucesso,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () {
               Navigator.pop(ctx);
               _finalizarMatricula();
             },
-            child: const Text('SALVAR'),
+            child: const Text('SALVAR', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -833,16 +882,19 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   // SALVAMENTO NO FIREBASE (TEXTO E IMAGEM)
   // ==========================================
   void _finalizarMatricula() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: CoresDomex.azulPrincipal),
-      ),
-    );
+    setState(() => _estaSalvando = true);
+
+    // Popup visual de salvamento se for cadastro novo (se for edição, o botão gira)
+    if (!isEdicao) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) =>
+            const Center(child: CircularProgressIndicator(color: Colors.blue)),
+      );
+    }
 
     try {
-      final isEdicao = widget.alunoIdAEditar != null;
       final nomeAluno = _nomeAlunoCtrl.text.isEmpty
           ? "Aluno Sem Nome"
           : _nomeAlunoCtrl.text;
@@ -850,7 +902,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
       String docId = widget.alunoIdAEditar ?? "";
       String raFinal = "";
 
-      // Geração de RA (se for novo)
       if (!isEdicao) {
         final anoAtual = DateTime.now().year;
         final sequencial = (DateTime.now().millisecondsSinceEpoch % 10000)
@@ -862,7 +913,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         raFinal = widget.alunoDataAEditar?['ra'] ?? "";
       }
 
-      // UPLOAD PARA O FIREBASE STORAGE
       String? linkFotoFinal = _fotoUrlExistente;
       if (_imagemBytes != null) {
         final storageRef = FirebaseStorage.instance.ref().child(
@@ -872,7 +922,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         linkFotoFinal = await storageRef.getDownloadURL();
       }
 
-      // MONTANDO O MAPA COMPLETO
       Map<String, dynamic> dadosAluno = {
         'ra': raFinal,
         'nomeCompleto': nomeAluno,
@@ -926,7 +975,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         ],
       };
 
-      // SALVANDO NO BANCO DE DADOS
       if (isEdicao) {
         await FirebaseFirestore.instance
             .collection('alunos')
@@ -941,18 +989,21 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
       }
 
       if (!mounted) return;
-      Navigator.pop(context); // Tira o loading
-      Navigator.pop(context); // Volta pra lista de alunos
+
+      if (!isEdicao) Navigator.pop(context); // Tira o loading se for novo
+      setState(() => _estaSalvando = false);
+      Navigator.pop(context); // Volta pra lista
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Salvo com sucesso!'),
-          backgroundColor: CoresDomex.verdeSucesso,
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Tira o loading
+      if (!isEdicao) Navigator.pop(context);
+      setState(() => _estaSalvando = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Erro ao salvar: $e'),

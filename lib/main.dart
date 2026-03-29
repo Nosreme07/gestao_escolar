@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:gestao_escolar/telas/login/login_tela.dart';
 import 'firebase_options.dart';
 import 'package:gestao_escolar/nucleo/cores.dart';
 import 'package:gestao_escolar/telas/tela_principal.dart'; // Caminho correto pelo seu print
@@ -39,7 +40,7 @@ class GestaoEscolarApp extends StatelessWidget {
           fillColor: Colors.white,
         ),
       ),
-      home: const TelaPrincipal(),
+      home: const LoginTela(),
     );
   }
 }
