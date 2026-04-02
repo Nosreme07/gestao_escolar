@@ -445,10 +445,8 @@ class TelaDetalhesAluno extends StatelessWidget {
                               color: Colors.red,
                             ),
                             tooltip: 'Exportar PDF',
-                            onPressed: () => _gerarECompartilharPDF(
-                              context,
-                              dados,
-                            ), // Passamos o context para exibir erro se falhar
+                            onPressed: () =>
+                                _gerarECompartilharPDF(context, dados),
                           ),
                           IconButton(
                             icon: const Icon(Icons.close, color: Colors.grey),
@@ -481,6 +479,10 @@ class TelaDetalhesAluno extends StatelessWidget {
                   _linhaDado('Nº', endereco['numero']),
                   _linhaDado('Bairro', endereco['bairro']),
                   _linhaDado('Cidade', endereco['cidade']),
+                  _linhaDado(
+                    'Referência',
+                    endereco['pontoReferencia'],
+                  ), // <-- EXIBIÇÃO NO APP AQUI
                   const SizedBox(height: 16),
 
                   _tituloSecao('3. Responsáveis'),
@@ -551,7 +553,7 @@ class TelaDetalhesAluno extends StatelessWidget {
   }
 
   // ==========================================
-  // GERADOR DE PDF (ATUALIZADO)
+  // GERADOR DE PDF (ATUALIZADO COM REFERÊNCIA)
   // ==========================================
   Future<void> _gerarECompartilharPDF(
     BuildContext context,
@@ -684,6 +686,10 @@ class TelaDetalhesAluno extends StatelessWidget {
               ),
               pw.Text(
                 'Rua: ${endereco['rua'] ?? ''}, Nº ${endereco['numero'] ?? ''} - ${endereco['bairro'] ?? ''}, ${endereco['cidade'] ?? ''}',
+              ),
+              // <-- EXIBIÇÃO NO PDF AQUI
+              pw.Text(
+                'Ponto de Referência: ${endereco['pontoReferencia'] ?? 'Não informado'}',
               ),
               pw.SizedBox(height: 16),
 

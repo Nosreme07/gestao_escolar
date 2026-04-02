@@ -4,9 +4,8 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_cropper/image_cropper.dart'; // PACOTE DE ENQUADRAMENTO
+import 'package:image_cropper/image_cropper.dart';
 
-// Certifique-se de que o caminho para as suas cores está correto!
 import 'package:gestao_escolar/nucleo/cores.dart';
 
 class CadastroAlunoTela extends StatefulWidget {
@@ -74,16 +73,17 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   ];
   final List<String> _turnos = ['Manhã', 'Tarde', 'Noite'];
 
-  // Lista temporária (idealmente puxada do Firebase)
   final List<String> _alunosCadastradosMock = [
     '2025001 - João Silva',
     '2025089 - Maria Souza',
   ];
 
+  // --- ENDEREÇO COM PONTO DE REFERÊNCIA ---
   final _ruaCtrl = TextEditingController();
   final _numeroCtrl = TextEditingController();
   final _bairroCtrl = TextEditingController();
   final _cidadeCtrl = TextEditingController();
+  final _referenciaCtrl = TextEditingController(); // NOVO CAMPO
 
   String _responsavelFinanceiro = 'Mãe';
   bool _podeSairSozinho = false;
@@ -139,6 +139,8 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
       _numeroCtrl.text = endereco['numero'] ?? '';
       _bairroCtrl.text = endereco['bairro'] ?? '';
       _cidadeCtrl.text = endereco['cidade'] ?? '';
+      _referenciaCtrl.text =
+          endereco['pontoReferencia'] ?? ''; // CARREGANDO NOVO CAMPO
 
       final responsaveis = dados['responsaveis'] ?? {};
       setState(() {
@@ -182,9 +184,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     }
   }
 
-  // ==========================================
-  // FUNÇÕES DE FOTO COM ENQUADRAMENTO (CROP)
-  // ==========================================
   Future<void> _capturarImagem(ImageSource fonte) async {
     try {
       final XFile? imagem = await _selecionadorImagem.pickImage(
@@ -193,13 +192,11 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
       );
 
       if (imagem != null) {
-        // NOVO: Chama a tela de recorte antes de salvar
+        if (!mounted) return;
+
         CroppedFile? imagemCortada = await ImageCropper().cropImage(
           sourcePath: imagem.path,
-          aspectRatio: const CropAspectRatio(
-            ratioX: 1,
-            ratioY: 1,
-          ), // Obriga a ser quadrado
+          aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
           uiSettings: [
             AndroidUiSettings(
               toolbarTitle: 'Enquadrar Foto',
@@ -213,7 +210,10 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
               title: 'Enquadrar Foto',
               aspectRatioLockEnabled: true,
             ),
-            WebUiSettings(context: context),
+            WebUiSettings(
+              context: context,
+              presentStyle: WebPresentStyle.dialog,
+            ),
           ],
         );
 
@@ -221,7 +221,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
           final bytes = await imagemCortada.readAsBytes();
           setState(() {
             _imagemBytes = bytes;
-            _fotoUrlExistente = null; // Remove a antiga
+            _fotoUrlExistente = null;
           });
         }
       }
@@ -293,25 +293,21 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
     );
   }
 
-  // ==========================================
-  // INTERFACE
-  // ==========================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(isEdicao ? 'Editar Aluno' : 'Nova Matrícula'),
-        backgroundColor: Colors.blue[900], // CoresDomex.azulPrincipal
+        backgroundColor: Colors.blue[900],
         foregroundColor: Colors.white,
       ),
-      // BOTÃO FIXO DE SALVAR (Apenas no modo Edição)
       bottomNavigationBar: isEdicao
           ? SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green, // CoresDomex.verdeSucesso
+                    backgroundColor: Colors.green,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   onPressed: _estaSalvando ? null : _finalizarMatricula,
@@ -587,6 +583,14 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
           TextFormField(
             controller: _cidadeCtrl,
             decoration: const InputDecoration(labelText: 'Cidade'),
+          ),
+          const SizedBox(height: 16),
+          // --- NOVO CAMPO: PONTO DE REFERÊNCIA ---
+          TextFormField(
+            controller: _referenciaCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Ponto de Referência (Opcional)',
+            ),
           ),
         ],
       ),
@@ -884,7 +888,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   void _finalizarMatricula() async {
     setState(() => _estaSalvando = true);
 
-    // Popup visual de salvamento se for cadastro novo (se for edição, o botão gira)
     if (!isEdicao) {
       showDialog(
         context: context,
@@ -937,6 +940,8 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
           'numero': _numeroCtrl.text,
           'bairro': _bairroCtrl.text,
           'cidade': _cidadeCtrl.text,
+          'pontoReferencia':
+              _referenciaCtrl.text, // --- SALVANDO NOVO CAMPO ---
         },
         'responsaveis': {
           'responsavelFinanceiro': _responsavelFinanceiro,
@@ -990,9 +995,9 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
 
       if (!mounted) return;
 
-      if (!isEdicao) Navigator.pop(context); // Tira o loading se for novo
+      if (!isEdicao) Navigator.pop(context);
       setState(() => _estaSalvando = false);
-      Navigator.pop(context); // Volta pra lista
+      Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -156,8 +156,10 @@ class _LoginTelaState extends State<LoginTela> {
         return;
       }
 
-      // 3. Pegamos os dados do usuário encontrado
+      // 3. Pegamos os dados do usuário encontrado e o ID DELE NO BANCO
+      final docId = resultado.docs.first.id; // <--- SEGREDO ESTÁ AQUI
       final dadosUsuario = resultado.docs.first.data() as Map<String, dynamic>;
+
       final String senhaCorreta = dadosUsuario['senha'] ?? '';
       final String perfil = dadosUsuario['perfil'] ?? '';
       final String nome = dadosUsuario['nome'] ?? '';
@@ -179,7 +181,8 @@ class _LoginTelaState extends State<LoginTela> {
         ),
       );
 
-      _redirecionarPorPerfil(context, perfil);
+      // Passamos o perfil e o ID único do usuário logado
+      _redirecionarPorPerfil(context, perfil, docId);
     } catch (e) {
       setState(() => _estaCarregando = false);
       _mostrarErro('Erro de conexão: $e');
@@ -194,21 +197,25 @@ class _LoginTelaState extends State<LoginTela> {
     }
   }
 
-  void _redirecionarPorPerfil(BuildContext context, String perfil) {
-    // Aqui usamos o perfil salvo no Firebase ('Secretaria', 'Professor', 'Aluno', etc.)
+  // Recebe o ID e envia para a Tela Principal
+  void _redirecionarPorPerfil(
+    BuildContext context,
+    String perfil,
+    String docId,
+  ) {
     switch (perfil) {
       case 'Secretaria':
-      case 'Diretor': // Caso adicione diretor no futuro
-        // A tela principal já tem o acesso à secretaria
+      case 'Diretor':
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const TelaPrincipal()),
+          // AQUI: Enviando o ID para a TelaPrincipal para o botão "Perfil" puxar os dados certos
+          MaterialPageRoute(builder: (_) => TelaPrincipal(usuarioId: docId)),
         );
         break;
 
       case 'Professor':
-        // Descomente e ajuste o import quando a tela do professor estiver pronta
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const InicioProfessorTela()));
+        // Quando for para a tela do professor, lembre de passar o ID assim:
+        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => InicioProfessorTela(usuarioId: docId)));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Navegando para o painel do Professor...'),
@@ -218,7 +225,6 @@ class _LoginTelaState extends State<LoginTela> {
 
       case 'Aluno':
       case 'Responsável pelo aluno':
-        // Criar as telas correspondentes e usar o Navigator.pushReplacement
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Navegando para o painel do $perfil...')),
         );
