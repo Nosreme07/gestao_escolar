@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gestao_escolar/telas/secretaria/cadastro_aluno.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
 // Importamos a aba de alunos para reaproveitar a tela de visualização do perfil!
 import 'package:gestao_escolar/telas/secretaria/aba_alunos.dart';
-import 'package:gestao_escolar/telas/secretaria/cadastro_aluno.dart';
 
 // ==========================================
 // ABA 2: LISTAGEM DE TURMAS (Formato Lista Compacta)
@@ -10,9 +15,77 @@ import 'package:gestao_escolar/telas/secretaria/cadastro_aluno.dart';
 class AbaTurmas extends StatelessWidget {
   const AbaTurmas({super.key});
 
+  // Função para dar o "peso" correto para cada turma (ordem cronológica)
+  int _pesoDaTurma(String nomeDaTurma) {
+    final ordemCorreta = [
+      'Maternal',
+      'Jardim I',
+      'Jardim II',
+      '1º Ano (Fund I)',
+      '2º Ano (Fund I)',
+      '3º Ano (Fund I)',
+      '4º Ano (Fund I)',
+      '5º Ano (Fund I)',
+      '6º Ano (Fund II)',
+      '7º Ano (Fund II)',
+      '8º Ano (Fund II)',
+      '9º Ano (Fund II)',
+      '1º Ano (Ens. Médio)',
+      '2º Ano (Ens. Médio)',
+      '3º Ano (Ens. Médio)',
+      '1º Ano (Fundamental I)',
+      '2º Ano (Fundamental I)',
+      '3º Ano (Fundamental I)',
+      '4º Ano (Fundamental I)',
+      '5º Ano (Fundamental I)',
+      '6º Ano (Fundamental II)',
+      '7º Ano (Fundamental II)',
+      '8º Ano (Fundamental II)',
+      '9º Ano (Fundamental II)',
+    ];
+
+    for (int i = 0; i < ordemCorreta.length; i++) {
+      if (nomeDaTurma.contains(ordemCorreta[i])) return i;
+    }
+    return 99; // Se for uma turma desconhecida, vai para o final
+  }
+
+  // Função para dar peso aos turnos
+  int _pesoDoTurno(String nomeDoTurno) {
+    if (nomeDoTurno.contains('Manhã')) return 0;
+    if (nomeDoTurno.contains('Tarde')) return 1;
+    if (nomeDoTurno.contains('Noite')) return 2;
+    return 3;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Gestão de Turmas',
+          style: TextStyle(fontSize: 18, color: Colors.black87),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          // BOTÃO: GERAR LISTA GERAL DE TODAS AS TURMAS
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: TextButton.icon(
+              onPressed: () => _gerarRelatorioGeralAlunos(context),
+              icon: const Icon(Icons.print, color: Colors.blue),
+              label: const Text(
+                'Lista Geral',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('turmas').snapshots(),
         builder: (context, snapshot) {
@@ -26,9 +99,26 @@ class AbaTurmas extends StatelessWidget {
             return const Center(child: Text('Nenhuma turma cadastrada.'));
           }
 
-          final turmasDocs = snapshot.data!.docs;
+          // ORDENAÇÃO INTELIGENTE DAS TURMAS NA TELA
+          final turmasDocs = snapshot.data!.docs.toList();
+          turmasDocs.sort((a, b) {
+            final dataA = a.data() as Map<String, dynamic>;
+            final dataB = b.data() as Map<String, dynamic>;
 
-          // Mudamos de GridView para ListView.builder
+            String nomeA = dataA['nome'] ?? '';
+            String nomeB = dataB['nome'] ?? '';
+            String turnoA = dataA['turno'] ?? '';
+            String turnoB = dataB['turno'] ?? '';
+
+            int pesoTurmaA = _pesoDaTurma(nomeA);
+            int pesoTurmaB = _pesoDaTurma(nomeB);
+
+            if (pesoTurmaA == pesoTurmaB) {
+              return _pesoDoTurno(turnoA).compareTo(_pesoDoTurno(turnoB));
+            }
+            return pesoTurmaA.compareTo(pesoTurmaB);
+          });
+
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: turmasDocs.length,
@@ -71,7 +161,6 @@ class AbaTurmas extends StatelessWidget {
                           ),
                         );
                       },
-                      // Ícone redondinho padrão igual aos alunos
                       leading: CircleAvatar(
                         backgroundColor: Colors.blue.shade100,
                         child: const Icon(
@@ -87,7 +176,6 @@ class AbaTurmas extends StatelessWidget {
                         ),
                       ),
                       subtitle: Text('Turno: $turno'),
-                      // A pílula de quantidade de alunos fica no lado direito
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -114,6 +202,8 @@ class AbaTurmas extends StatelessWidget {
           );
         },
       ),
+
+      // BOTÃO ORIGINAL RESTAURADO
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           showModalBottomSheet(
@@ -134,6 +224,208 @@ class AbaTurmas extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // ==========================================
+  // FUNÇÃO: GERAR RELATÓRIO GERAL (COPIADA DE RELATÓRIOS)
+  // ==========================================
+  Future<void> _gerarRelatorioGeralAlunos(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Gerando Lista Geral...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final snap = await FirebaseFirestore.instance.collection('alunos').get();
+      final alunos = snap.docs.map((d) => d.data()).toList();
+
+      Map<String, List<Map<String, dynamic>>> alunosAgrupados = {};
+
+      for (var aluno in alunos) {
+        String turma = aluno['turma'] ?? 'Sem Turma';
+        String turno = aluno['turno'] ?? 'Sem Turno';
+        String chaveGrupo = '$turma - $turno';
+
+        if (!alunosAgrupados.containsKey(chaveGrupo)) {
+          alunosAgrupados[chaveGrupo] = [];
+        }
+        alunosAgrupados[chaveGrupo]!.add(aluno);
+      }
+
+      List<String> chavesOrdenadas = alunosAgrupados.keys.toList();
+      chavesOrdenadas.sort((a, b) {
+        int pesoTurmaA = _pesoDaTurma(a);
+        int pesoTurmaB = _pesoDaTurma(b);
+        if (pesoTurmaA == pesoTurmaB) {
+          return _pesoDoTurno(a).compareTo(_pesoDoTurno(b));
+        }
+        return pesoTurmaA.compareTo(pesoTurmaB);
+      });
+
+      final pdf = pw.Document();
+      final headers = [
+        'Matrícula (RA)',
+        'Nome Completo',
+        'Contato de Emergência',
+      ];
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (pw.Context pdfContext) {
+            List<pw.Widget> conteudoPdf = [
+              // CABEÇALHO DO PDF
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'GESTAO ESCOLAR - DOMEX TECH',
+                            style: pw.TextStyle(
+                              fontSize: 18,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue900,
+                            ),
+                          ),
+                          pw.Text(
+                            'Sistema Integrado de Secretaria',
+                            style: const pw.TextStyle(
+                              fontSize: 12,
+                              color: PdfColors.grey700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.Text(
+                        'Data: ${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}',
+                        style: const pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Divider(thickness: 2, color: PdfColors.blue900),
+                  pw.SizedBox(height: 10),
+                  pw.Text(
+                    'Lista Geral de Alunos (Por Turma)',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 5),
+                  pw.Text(
+                    'Total de alunos: ${alunos.length}',
+                    style: const pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.grey700,
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                ],
+              ),
+            ];
+
+            for (String chave in chavesOrdenadas) {
+              List<Map<String, dynamic>> alunosDaTurma =
+                  alunosAgrupados[chave]!;
+              alunosDaTurma.sort(
+                (a, b) => (a['nomeCompleto'] ?? '').compareTo(
+                  b['nomeCompleto'] ?? '',
+                ),
+              );
+
+              final data = alunosDaTurma.map((a) {
+                String contatoEmergencia = 'Não informado';
+                final emergenciaLista = a['emergencia'] as List<dynamic>?;
+                if (emergenciaLista != null && emergenciaLista.isNotEmpty) {
+                  contatoEmergencia =
+                      '${emergenciaLista[0]['nome'] ?? ''} (${emergenciaLista[0]['telefone'] ?? ''})';
+                }
+                return [
+                  a['ra']?.toString() ?? '-',
+                  a['nomeCompleto']?.toString() ?? '-',
+                  contatoEmergencia,
+                ];
+              }).toList();
+
+              conteudoPdf.add(pw.SizedBox(height: 15));
+              conteudoPdf.add(
+                pw.Container(
+                  color: PdfColors.grey200,
+                  padding: const pw.EdgeInsets.all(6),
+                  width: double.infinity,
+                  child: pw.Text(
+                    'Turma: $chave (${alunosDaTurma.length} alunos)',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              );
+              conteudoPdf.add(pw.SizedBox(height: 5));
+              conteudoPdf.add(
+                pw.TableHelper.fromTextArray(
+                  headers: headers,
+                  data: data,
+                  border: pw.TableBorder.all(color: PdfColors.grey300),
+                  headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColors.blue900,
+                  ),
+                  cellStyle: const pw.TextStyle(fontSize: 10),
+                  cellAlignment: pw.Alignment.center,
+                  cellPadding: const pw.EdgeInsets.all(6),
+                  oddRowDecoration: const pw.BoxDecoration(
+                    color: PdfColors.grey100,
+                  ),
+                ),
+              );
+            }
+            return conteudoPdf;
+          },
+        ),
+      );
+
+      if (context.mounted) Navigator.pop(context); // Fecha o loading
+      await Printing.sharePdf(
+        bytes: await pdf.save(),
+        filename: 'Lista_Geral_Turmas.pdf',
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }
 
@@ -265,13 +557,27 @@ class TelaDetalhesTurma extends StatelessWidget {
 
                 final alunosDocs = snapshot.data!.docs;
 
+                // ORDENAR ALUNOS DENTRO DA TURMA ALFABETICAMENTE
+                final alunosOrdenados = alunosDocs.toList();
+                alunosOrdenados.sort((a, b) {
+                  final nomeA =
+                      ((a.data() as Map<String, dynamic>)['nomeCompleto'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                  final nomeB =
+                      ((b.data() as Map<String, dynamic>)['nomeCompleto'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                  return nomeA.compareTo(nomeB);
+                });
+
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: alunosDocs.length,
+                  itemCount: alunosOrdenados.length,
                   itemBuilder: (context, index) {
                     final alunoData =
-                        alunosDocs[index].data() as Map<String, dynamic>;
-                    final docId = alunosDocs[index].id;
+                        alunosOrdenados[index].data() as Map<String, dynamic>;
+                    final docId = alunosOrdenados[index].id;
 
                     final nomeAluno = alunoData['nomeCompleto'] ?? 'Sem Nome';
                     final matricula = alunoData['ra'] ?? 'Sem RA';
@@ -297,7 +603,6 @@ class TelaDetalhesTurma extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Text('RA: $matricula'),
-                        // AQUI ESTÁ A MÁGICA: Usamos um Row para colocar os dois botões
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -370,15 +675,15 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
     'Maternal',
     'Jardim I',
     'Jardim II',
-    '1º Ano (Fundamental I)',
-    '2º Ano (Fundamental I)',
-    '3º Ano (Fundamental I)',
-    '4º Ano (Fundamental I)',
-    '5º Ano (Fundamental I)',
-    '6º Ano (Fundamental II)',
-    '7º Ano (Fundamental II)',
-    '8º Ano (Fundamental II)',
-    '9º Ano (Fundamental II)',
+    '1º Ano (Fund I)',
+    '2º Ano (Fund I)',
+    '3º Ano (Fund I)',
+    '4º Ano (Fund I)',
+    '5º Ano (Fund I)',
+    '6º Ano (Fund II)',
+    '7º Ano (Fund II)',
+    '8º Ano (Fund II)',
+    '9º Ano (Fund II)',
     '1º Ano (Ens. Médio)',
     '2º Ano (Ens. Médio)',
     '3º Ano (Ens. Médio)',

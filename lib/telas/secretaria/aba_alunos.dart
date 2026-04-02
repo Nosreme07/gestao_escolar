@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gestao_escolar/telas/secretaria/cadastro_aluno.dart';
-import 'package:url_launcher/url_launcher.dart'; // Para ligações e WhatsApp
-import 'package:pdf/pdf.dart'; // Para montar o PDF
-import 'package:pdf/widgets.dart' as pw; // Para desenhar o PDF
-import 'package:printing/printing.dart'; // Para compartilhar o PDF
+import 'package:url_launcher/url_launcher.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 // ==========================================
 // ABA 1: LISTAGEM DE ALUNOS
@@ -61,7 +61,8 @@ class _AbaAlunosState extends State<AbaAlunos> {
               },
             ),
           ),
-          // 2. LISTA DE ALUNOS
+
+          // 2. LISTA DE ALUNOS COM CONTADOR
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -89,74 +90,117 @@ class _AbaAlunosState extends State<AbaAlunos> {
                       matricula.contains(_termoBusca);
                 }).toList();
 
+                // ORDENAR A LISTA EM ORDEM ALFABÉTICA (A-Z)
+                alunosDocs.sort((a, b) {
+                  final dataA = a.data() as Map<String, dynamic>;
+                  final dataB = b.data() as Map<String, dynamic>;
+                  final nomeA = (dataA['nomeCompleto'] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  final nomeB = (dataB['nomeCompleto'] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  return nomeA.compareTo(nomeB);
+                });
+
                 if (alunosDocs.isEmpty) {
                   return const Center(
                     child: Text('Nenhum aluno encontrado para esta busca.'),
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: alunosDocs.length,
-                  itemBuilder: (context, index) {
-                    final alunoData =
-                        alunosDocs[index].data() as Map<String, dynamic>;
-                    final docId = alunosDocs[index].id;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // CONTADOR DE ALUNOS
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20.0,
+                        vertical: 4.0,
+                      ),
+                      child: Text(
+                        'Total: ${alunosDocs.length} aluno(s)',
+                        style: TextStyle(
+                          color: Colors.blue[900],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
 
-                    final nome = alunoData['nomeCompleto'] ?? 'Sem Nome';
-                    final matricula = alunoData['ra'] ?? 'Sem RA';
-                    final turma = alunoData['turma'] ?? 'Sem Turma';
-                    final fotoUrl = alunoData['fotoUrl'] as String?;
+                    // LISTA ROLÁVEL
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        itemCount: alunosDocs.length,
+                        itemBuilder: (context, index) {
+                          final alunoData =
+                              alunosDocs[index].data() as Map<String, dynamic>;
+                          final docId = alunosDocs[index].id;
 
-                    return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: InkWell(
-                        onTap: () {
-                          // Abre o perfil do aluno ao clicar no Card
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TelaDetalhesAluno(
-                                docId: docId,
-                                alunoData: alunoData,
+                          final nome = alunoData['nomeCompleto'] ?? 'Sem Nome';
+                          final matricula = alunoData['ra'] ?? 'Sem RA';
+                          final turma = alunoData['turma'] ?? 'Sem Turma';
+                          final fotoUrl = alunoData['fotoUrl'] as String?;
+
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TelaDetalhesAluno(
+                                      docId: docId,
+                                      alunoData: alunoData,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: ListTile(
+                                leading: fotoUrl != null && fotoUrl.isNotEmpty
+                                    ? CircleAvatar(
+                                        backgroundImage: NetworkImage(fotoUrl),
+                                      )
+                                    : CircleAvatar(
+                                        backgroundColor: Colors.blue.shade100,
+                                        child: const Icon(
+                                          Icons.person,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                title: Text(
+                                  nome,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Matrícula: $matricula | Turma: $turma',
+                                ),
+                                trailing: const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ),
                           );
                         },
-                        child: ListTile(
-                          leading: fotoUrl != null && fotoUrl.isNotEmpty
-                              ? CircleAvatar(
-                                  backgroundImage: NetworkImage(fotoUrl),
-                                )
-                              : CircleAvatar(
-                                  backgroundColor: Colors.blue.shade100,
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: Colors.blue,
-                                  ),
-                                ),
-                          title: Text(
-                            nome,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            'Matrícula: $matricula | Turma: $turma',
-                          ),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.grey,
-                          ),
-                        ),
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 );
               },
             ),
           ),
         ],
       ),
+
+      // BOTÃO NOVO ALUNO RESTAURADO
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
@@ -479,10 +523,7 @@ class TelaDetalhesAluno extends StatelessWidget {
                   _linhaDado('Nº', endereco['numero']),
                   _linhaDado('Bairro', endereco['bairro']),
                   _linhaDado('Cidade', endereco['cidade']),
-                  _linhaDado(
-                    'Referência',
-                    endereco['pontoReferencia'],
-                  ), // <-- EXIBIÇÃO NO APP AQUI
+                  _linhaDado('Referência', endereco['pontoReferencia']),
                   const SizedBox(height: 16),
 
                   _tituloSecao('3. Responsáveis'),
@@ -548,18 +589,18 @@ class TelaDetalhesAluno extends StatelessWidget {
 
   Future<void> _abrirWhatsApp(String numero) async {
     final Uri url = Uri.parse('https://wa.me/55$numero');
-    if (await canLaunchUrl(url))
+    if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
   }
 
   // ==========================================
-  // GERADOR DE PDF (ATUALIZADO COM REFERÊNCIA)
+  // GERADOR DE PDF
   // ==========================================
   Future<void> _gerarECompartilharPDF(
     BuildContext context,
     Map<String, dynamic> dados,
   ) async {
-    // Popup de Loading
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -575,7 +616,6 @@ class TelaDetalhesAluno extends StatelessWidget {
       final pai = resp['pai'] ?? {};
       final saude = dados['saude'] ?? {};
 
-      // 1. Tenta carregar a imagem do Firebase para o PDF
       pw.ImageProvider? imagemPdf;
       if (dados['fotoUrl'] != null && dados['fotoUrl'].toString().isNotEmpty) {
         try {
@@ -585,7 +625,6 @@ class TelaDetalhesAluno extends StatelessWidget {
         }
       }
 
-      // 2. Cria a data e hora para o rodapé
       final hoje = DateTime.now();
       final dataHora =
           '${hoje.day.toString().padLeft(2, '0')}/${hoje.month.toString().padLeft(2, '0')}/${hoje.year} às ${hoje.hour.toString().padLeft(2, '0')}:${hoje.minute.toString().padLeft(2, '0')}';
@@ -594,7 +633,6 @@ class TelaDetalhesAluno extends StatelessWidget {
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(32),
-          // RODAPÉ INTELIGENTE
           footer: (pw.Context context) {
             return pw.Column(
               children: [
@@ -613,7 +651,6 @@ class TelaDetalhesAluno extends StatelessWidget {
           },
           build: (pw.Context context) {
             return [
-              // CABEÇALHO E FOTO
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -676,7 +713,6 @@ class TelaDetalhesAluno extends StatelessWidget {
               ),
               pw.SizedBox(height: 16),
 
-              // ENDEREÇO
               pw.Text(
                 '2. ENDEREÇO',
                 style: pw.TextStyle(
@@ -687,13 +723,11 @@ class TelaDetalhesAluno extends StatelessWidget {
               pw.Text(
                 'Rua: ${endereco['rua'] ?? ''}, Nº ${endereco['numero'] ?? ''} - ${endereco['bairro'] ?? ''}, ${endereco['cidade'] ?? ''}',
               ),
-              // <-- EXIBIÇÃO NO PDF AQUI
               pw.Text(
                 'Ponto de Referência: ${endereco['pontoReferencia'] ?? 'Não informado'}',
               ),
               pw.SizedBox(height: 16),
 
-              // RESPONSÁVEIS
               pw.Text(
                 '3. RESPONSÁVEIS',
                 style: pw.TextStyle(
@@ -716,7 +750,6 @@ class TelaDetalhesAluno extends StatelessWidget {
               ),
               pw.SizedBox(height: 16),
 
-              // SAÚDE E EMERGÊNCIA
               pw.Text(
                 '4. SAÚDE E EMERGÊNCIA',
                 style: pw.TextStyle(
@@ -739,7 +772,6 @@ class TelaDetalhesAluno extends StatelessWidget {
         ),
       );
 
-      // Fecha o loading e compartilha
       if (context.mounted) Navigator.pop(context);
       await Printing.sharePdf(
         bytes: await pdf.save(),

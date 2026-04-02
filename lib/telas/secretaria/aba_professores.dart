@@ -30,80 +30,123 @@ class AbaProfessores extends StatelessWidget {
             return const Center(child: Text('Nenhum professor cadastrado.'));
           }
 
-          final professoresDocs = snapshot.data!.docs;
+          // ORDENAR PROFESSORES ALFABETICAMENTE (A-Z)
+          final professoresDocs = snapshot.data!.docs.toList();
+          professoresDocs.sort((a, b) {
+            final dataA = a.data() as Map<String, dynamic>;
+            final dataB = b.data() as Map<String, dynamic>;
+            final nomeA = (dataA['nome'] ?? '').toString().toLowerCase();
+            final nomeB = (dataB['nome'] ?? '').toString().toLowerCase();
+            return nomeA.compareTo(nomeB);
+          });
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: professoresDocs.length,
-            itemBuilder: (context, index) {
-              final profData =
-                  professoresDocs[index].data() as Map<String, dynamic>;
-              final docId = professoresDocs[index].id;
-
-              final nome = profData['nome'] ?? 'Sem Nome';
-              final disciplina = profData['disciplina'] ?? 'Não informada';
-              final fotoUrl = profData['fotoUrl'] as String?;
-
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: fotoUrl != null && fotoUrl.isNotEmpty
-                      ? CircleAvatar(
-                          backgroundImage: NetworkImage(fotoUrl),
-                          radius: 25,
-                        )
-                      : CircleAvatar(
-                          backgroundColor: Colors.teal.shade100,
-                          radius: 25,
-                          child: const Icon(Icons.school, color: Colors.teal),
-                        ),
-                  title: Text(
-                    nome,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text('Disciplina: $disciplina'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.visibility, color: Colors.blue),
-                        tooltip: 'Visualizar',
-                        onPressed: () =>
-                            _mostrarDetalhesProfessor(context, profData),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.orange),
-                        tooltip: 'Editar',
-                        onPressed: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(20),
-                              ),
-                            ),
-                            builder: (_) => _ModalCadastroProfessor(
-                              profId: docId,
-                              profData: profData,
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        tooltip: 'Excluir',
-                        onPressed: () => _confirmarExclusao(context, docId),
-                      ),
-                    ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: 16.0,
+                  top: 16.0,
+                  bottom: 8.0,
+                ),
+                child: Text(
+                  'Total: ${professoresDocs.length} professor(es)',
+                  style: TextStyle(
+                    color: Colors.blue[900],
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
-              );
-            },
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: professoresDocs.length,
+                  itemBuilder: (context, index) {
+                    final profData =
+                        professoresDocs[index].data() as Map<String, dynamic>;
+                    final docId = professoresDocs[index].id;
+
+                    final nome = profData['nome'] ?? 'Sem Nome';
+                    final disciplina =
+                        profData['disciplina'] ?? 'Não informada';
+                    final fotoUrl = profData['fotoUrl'] as String?;
+
+                    return Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: fotoUrl != null && fotoUrl.isNotEmpty
+                            ? CircleAvatar(
+                                backgroundImage: NetworkImage(fotoUrl),
+                                radius: 25,
+                              )
+                            : CircleAvatar(
+                                backgroundColor: Colors.teal.shade100,
+                                radius: 25,
+                                child: const Icon(
+                                  Icons.school,
+                                  color: Colors.teal,
+                                ),
+                              ),
+                        title: Text(
+                          nome,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text('Disciplina: $disciplina'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.visibility,
+                                color: Colors.blue,
+                              ),
+                              tooltip: 'Visualizar',
+                              onPressed: () =>
+                                  _mostrarDetalhesProfessor(context, profData),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit,
+                                color: Colors.orange,
+                              ),
+                              tooltip: 'Editar',
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20),
+                                    ),
+                                  ),
+                                  builder: (_) => _ModalCadastroProfessor(
+                                    profId: docId,
+                                    profData: profData,
+                                  ),
+                                );
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Excluir',
+                              onPressed: () =>
+                                  _confirmarExclusao(context, docId),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
+
+      // BOTÃO ORIGINAL RESTAURADO
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           showModalBottomSheet(
@@ -145,10 +188,11 @@ class AbaProfessores extends StatelessWidget {
                   .collection('professores')
                   .doc(docId)
                   .delete();
-              if (context.mounted)
+              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Professor apagado!')),
                 );
+              }
             },
             child: const Text('Excluir'),
           ),
@@ -243,11 +287,12 @@ class AbaProfessores extends StatelessWidget {
                       final Uri url = Uri.parse(
                         'https://wa.me/55$contatoLimpo',
                       );
-                      if (await canLaunchUrl(url))
+                      if (await canLaunchUrl(url)) {
                         await launchUrl(
                           url,
                           mode: LaunchMode.externalApplication,
                         );
+                      }
                     },
                     icon: const Icon(
                       Icons.message,
@@ -381,10 +426,11 @@ class _ModalCadastroProfessorState extends State<_ModalCadastroProfessor> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Erro ao anexar foto: $e')));
+      }
     }
   }
 
