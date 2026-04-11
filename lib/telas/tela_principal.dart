@@ -8,24 +8,32 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 import 'package:gestao_escolar/nucleo/cores.dart';
 import 'package:gestao_escolar/telas/secretaria/tela_secretaria.dart';
+import 'package:gestao_escolar/telas/professor/inicio_professor_tela.dart';
+import 'package:gestao_escolar/telas/login/login_tela.dart';
 
 // ==========================================
 // TELA PRINCIPAL (DASHBOARD/MENU)
+// Esta é a tela central do aplicativo, exibida logo após o login.
+// Ela direciona o utilizador para o módulo correto dependendo do que ele precisa acessar.
 // ==========================================
 class TelaPrincipal extends StatelessWidget {
-  final String? usuarioId; // ID do usuário logado (vindo da tela de Login)
+  // Recebe o ID do usuário logado (vindo da tela de Login) para buscar os dados de perfil depois.
+  final String? usuarioId;
 
   const TelaPrincipal({super.key, this.usuarioId});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // --- BARRA SUPERIOR (APP BAR) ---
       appBar: AppBar(
         title: const Text('Domex Tech'),
         backgroundColor: CoresDomex.azulPrincipal,
         foregroundColor: Colors.white,
-        elevation: 0,
+        elevation:
+            0, // Zero elevation remove a sombra, deixando o design mais plano e moderno
         actions: [
+          // Botão para acessar o Perfil do Utilizador
           IconButton(
             icon: const Icon(Icons.account_circle, size: 30),
             tooltip: 'Meu Perfil',
@@ -38,13 +46,68 @@ class TelaPrincipal extends StatelessWidget {
               );
             },
           ),
+
+          // --- NOVO BOTÃO DE LOGOUT ---
+          IconButton(
+            icon: const Icon(Icons.exit_to_app, size: 28),
+            tooltip: 'Sair do Sistema',
+            onPressed: () {
+              // Exibe um pop-up de confirmação antes de sair
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text(
+                    'Sair do Sistema',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  content: const Text(
+                    'Deseja realmente encerrar a sua sessão?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx); // Fecha o pop-up
+
+                        // Volta para a Tela de Login e limpa todo o histórico (evita que o botão "Voltar" do telemóvel funcione)
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LoginTela()),
+                          (Route<dynamic> route) => false,
+                        );
+                      },
+                      child: const Text(
+                        'Sair',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8), // Um pequeno respiro no canto direito
         ],
       ),
+
+      // --- CORPO DA TELA (BODY) ---
       body: Padding(
+        // Adiciona um respiro de 24 pixels de todos os lados da tela
         padding: const EdgeInsets.all(24.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment
+              .stretch, // Estica os elementos para preencher a largura
           children: [
+            // Título de boas-vindas
             const Text(
               'Acesso ao Sistema',
               textAlign: TextAlign.center,
@@ -54,16 +117,22 @@ class TelaPrincipal extends StatelessWidget {
                 color: CoresDomex.azulPrincipal,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 8), // Espaçamento pequeno
+            // Subtítulo explicativo
             const Text(
               'Selecione o módulo que deseja acessar:',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(
+              height: 40,
+            ), // Espaçamento grande antes de começar a lista de botões
+            // --- LISTA DE BOTÕES (MÓDULOS) ---
+            // Expanded faz a lista ocupar todo o espaço restante disponível na tela
             Expanded(
               child: ListView(
                 children: [
+                  // 1. Botão da Secretaria
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Secretaria',
@@ -71,6 +140,7 @@ class TelaPrincipal extends StatelessWidget {
                     icone: Icons.admin_panel_settings,
                     cor: CoresDomex.azulPrincipal,
                     aoClicar: () {
+                      // Abre a tela principal da Secretaria
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -79,32 +149,81 @@ class TelaPrincipal extends StatelessWidget {
                       );
                     },
                   ),
+
+                  // ESPAÇAMENTO PADRÃO DE 16 PIXELS ENTRE SECRETARIA E PROFESSOR
                   const SizedBox(height: 16),
+
+                  // 2. Botão do Professor
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Professor',
                     subtitulo: 'Diário de classe, notas e frequências',
                     icone: Icons.school,
-                    cor: Colors.teal,
-                    aoClicar: () {},
+                    cor: Colors.teal, // Cor verde-água para diferenciar
+                    aoClicar: () {
+                      // Tratativa de erro: Se o ID sumir por algum bug, avisa o usuário
+                      if (usuarioId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'ID do usuário não encontrado. Faça login novamente.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+                      // Abre o painel do professor passando o ID de quem está logado
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              InicioProfessorTela(usuarioId: usuarioId!),
+                        ),
+                      );
+                    },
                   ),
+
+                  // ESPAÇAMENTO PADRÃO DE 16 PIXELS ENTRE PROFESSOR E ALUNO
                   const SizedBox(height: 16),
+
+                  // 3. Botão do Aluno
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Aluno',
                     subtitulo: 'Meu boletim, horários e atividades',
                     icone: Icons.face,
                     cor: CoresDomex.laranjaAcao,
-                    aoClicar: () {},
+                    aoClicar: () {
+                      // Feedback provisório para módulos ainda não desenvolvidos
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Módulo Aluno em desenvolvimento...'),
+                        ),
+                      );
+                    },
                   ),
+
+                  // ESPAÇAMENTO PADRÃO DE 16 PIXELS ENTRE ALUNO E RESPONSÁVEL
                   const SizedBox(height: 16),
+
+                  // 4. Botão do Responsável
                   _construirBotaoPerfil(
                     context,
                     titulo: 'Responsável pelo Aluno',
                     subtitulo: 'Acompanhamento escolar e financeiro',
                     icone: Icons.family_restroom,
                     cor: Colors.purple,
-                    aoClicar: () {},
+                    aoClicar: () {
+                      // Feedback provisório para módulos ainda não desenvolvidos
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Módulo Responsável em desenvolvimento...',
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -115,6 +234,11 @@ class TelaPrincipal extends StatelessWidget {
     );
   }
 
+  // ==========================================
+  // WIDGET HELPER: CONSTRUTOR DE BOTÕES DE MÓDULOS
+  // Esta função cria o layout "Card" padronizado para todos os botões do menu.
+  // Evita a repetição de código (Clean Code).
+  // ==========================================
   Widget _construirBotaoPerfil(
     BuildContext context, {
     required String titulo,
@@ -124,15 +248,18 @@ class TelaPrincipal extends StatelessWidget {
     required VoidCallback aoClicar,
   }) {
     return InkWell(
-      onTap: aoClicar,
-      borderRadius: BorderRadius.circular(16),
+      onTap: aoClicar, // Função executada ao tocar no botão
+      borderRadius: BorderRadius.circular(
+        16,
+      ), // Deixa o clique com o mesmo arredondamento do botão
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: Colors.grey.shade200), // Borda fina e clara
           boxShadow: [
+            // Efeito de sombra leve para parecer que o botão flutua na tela
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
@@ -142,15 +269,19 @@ class TelaPrincipal extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Círculo colorido que guarda o ícone
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: cor.withValues(alpha: 0.1),
+                color: cor.withValues(
+                  alpha: 0.1,
+                ), // Pega a cor principal e deixa ela 90% transparente
                 shape: BoxShape.circle,
               ),
               child: Icon(icone, size: 32, color: cor),
             ),
-            const SizedBox(width: 20),
+            const SizedBox(width: 20), // Espaço entre o ícone e os textos
+            // Área dos textos
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,6 +301,7 @@ class TelaPrincipal extends StatelessWidget {
                 ],
               ),
             ),
+            // Setinha no final para indicar que abre uma nova tela
             const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
           ],
         ),
@@ -179,7 +311,8 @@ class TelaPrincipal extends StatelessWidget {
 }
 
 // ==========================================
-// TELA: MEU PERFIL (Edição de Dados e Senha)
+// TELA: MEU PERFIL (Visualização e Edição)
+// Permite ao usuário logado ver seus dados e alterar Senha/Telefone/Foto
 // ==========================================
 class TelaPerfil extends StatefulWidget {
   final String? usuarioId;
@@ -191,46 +324,54 @@ class TelaPerfil extends StatefulWidget {
 }
 
 class _TelaPerfilState extends State<TelaPerfil> {
-  // Controladores Dados Básicos
-  final _nomeCtrl = TextEditingController(); // Apenas visualização
-  final _loginCtrl = TextEditingController(); // Apenas visualização
+  // Controladores de Texto - Identificação
+  final _nomeCtrl = TextEditingController(); // Apenas leitura
+  final _loginCtrl = TextEditingController(); // Apenas leitura
   final _telefoneCtrl = TextEditingController();
 
-  // Controladores Endereço
+  // Controladores de Texto - Endereço
   final _ruaCtrl = TextEditingController();
   final _numeroCtrl = TextEditingController();
   final _bairroCtrl = TextEditingController();
   final _cidadeCtrl = TextEditingController();
   final _referenciaCtrl = TextEditingController();
 
-  // Segurança
+  // Variáveis para Segurança (Alterar Senha)
   final _senhaCtrl = TextEditingController();
-  bool _mostrarSenha = false;
-  bool _editandoSenha = false; // Controla se o campo de senha está desbloqueado
+  bool _mostrarSenha = false; // Alterna a visualização da senha (olhinho)
+  bool _editandoSenha =
+      false; // Controla se o campo de senha está liberado para escrita
 
+  // Máscara para garantir que o número fique formatado como (XX) XXXXX-XXXX
   final _mascaraTelefone = MaskTextInputFormatter(
     mask: '(##) #####-####',
     filter: {"#": RegExp(r'[0-9]')},
   );
 
+  // Variáveis de Imagem
   final ImagePicker _selecionadorImagem = ImagePicker();
-  Uint8List? _imagemBytes;
-  String? _fotoUrlExistente;
+  Uint8List? _imagemBytes; // Imagem nova escolhida pelo usuário
+  String? _fotoUrlExistente; // Link da foto antiga que já estava no banco
 
-  bool _carregando = false;
-  bool _salvando = false;
+  bool _carregando = false; // Controla o loading de abertura da tela
+  bool _salvando = false; // Controla o loading do botão de Salvar
 
   @override
   void initState() {
     super.initState();
+    // Ao abrir a tela, se o usuário estiver logado, busca as informações dele
     if (widget.usuarioId != null) {
       _carregarDadosPerfil();
     }
   }
 
+  // ==========================================
+  // FUNÇÃO: BUSCAR DADOS DO FIREBASE
+  // ==========================================
   Future<void> _carregarDadosPerfil() async {
     setState(() => _carregando = true);
     try {
+      // Vai até a coleção "usuarios" e pega o documento do ID logado
       final doc = await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(widget.usuarioId)
@@ -239,13 +380,12 @@ class _TelaPerfilState extends State<TelaPerfil> {
       if (doc.exists) {
         final dados = doc.data() as Map<String, dynamic>;
 
-        // Dados Pessoais
+        // Preenche os campos da tela com os dados do banco
         _nomeCtrl.text = dados['nome'] ?? 'Não informado';
         _loginCtrl.text = dados['login'] ?? 'Não informado';
         _telefoneCtrl.text = dados['telefone'] ?? '';
         _senhaCtrl.text = dados['senha'] ?? '';
 
-        // Endereço
         final endereco = dados['endereco'] ?? {};
         _ruaCtrl.text = endereco['rua'] ?? '';
         _numeroCtrl.text = endereco['numero'] ?? '';
@@ -264,9 +404,12 @@ class _TelaPerfilState extends State<TelaPerfil> {
     }
   }
 
-  // Função de Foto com Crop Integrado
+  // ==========================================
+  // FUNÇÕES DE MANIPULAÇÃO DE FOTO (COM ENQUADRAMENTO/CROP)
+  // ==========================================
   Future<void> _capturarImagem(ImageSource fonte) async {
     try {
+      // Abre a câmera ou a galeria
       final XFile? imagem = await _selecionadorImagem.pickImage(
         source: fonte,
         imageQuality: 80,
@@ -275,6 +418,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
       if (imagem != null) {
         if (!mounted) return;
 
+        // Chama o plugin de recortar a foto, forçando ela a ficar "quadrada" (1:1)
         CroppedFile? imagemCortada = await ImageCropper().cropImage(
           sourcePath: imagem.path,
           aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
@@ -284,7 +428,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
               toolbarColor: Colors.blue[900],
               toolbarWidgetColor: Colors.white,
               initAspectRatio: CropAspectRatioPreset.square,
-              lockAspectRatio: true,
+              lockAspectRatio: true, // Trava na proporção quadrada
             ),
             IOSUiSettings(
               title: 'Enquadrar Foto',
@@ -298,10 +442,12 @@ class _TelaPerfilState extends State<TelaPerfil> {
         );
 
         if (imagemCortada != null) {
+          // Converte a imagem cortada para bytes e avisa a tela para se reconstruir
           final bytes = await imagemCortada.readAsBytes();
           setState(() {
             _imagemBytes = bytes;
-            _fotoUrlExistente = null;
+            _fotoUrlExistente =
+                null; // Limpa a URL antiga, pois há uma foto nova
           });
         }
       }
@@ -314,6 +460,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
     }
   }
 
+  // Modal Inferior (Bottom Sheet) com opções de Câmera ou Galeria
   void _mostrarOpcoesFoto() {
     showModalBottomSheet(
       context: context,
@@ -348,6 +495,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   _capturarImagem(ImageSource.camera);
                 },
               ),
+              // Mostra a opção de apagar apenas se já existir alguma foto configurada
               if (_imagemBytes != null || _fotoUrlExistente != null) ...[
                 const Divider(),
                 ListTile(
@@ -360,7 +508,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                     Navigator.pop(context);
                     setState(() {
                       _imagemBytes = null;
-                      _fotoUrlExistente = null;
+                      _fotoUrlExistente = null; // Apaga tudo
                     });
                   },
                 ),
@@ -372,40 +520,44 @@ class _TelaPerfilState extends State<TelaPerfil> {
     );
   }
 
+  // ==========================================
+  // FUNÇÃO: SALVAR AS ALTERAÇÕES DO PERFIL
+  // ==========================================
   Future<void> _salvarPerfil() async {
     if (widget.usuarioId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Modo de Teste: Suas alterações visuais funcionaram! (Falta linkar o ID do Login)',
-          ),
-          backgroundColor: Colors.orange,
+          content: Text('Erro: ID não encontrado.'),
+          backgroundColor: Colors.red,
         ),
       );
       Navigator.pop(context);
       return;
     }
 
-    setState(() => _salvando = true);
+    setState(() => _salvando = true); // Inicia a animação de girar o botão
 
     try {
       String? linkFotoFinal = _fotoUrlExistente;
 
+      // 1. Se houver imagem nova em memória (_imagemBytes), envia para o Firebase Storage
       if (_imagemBytes != null) {
         final storageRef = FirebaseStorage.instance.ref().child(
           'fotos_usuarios/${widget.usuarioId}.jpg',
         );
         await storageRef.putData(_imagemBytes!);
+        // Recupera o link da internet para salvar no banco
         linkFotoFinal = await storageRef.getDownloadURL();
       }
 
+      // 2. Salva as informações editáveis na coleção "usuarios" (O nome e login não mudam)
       await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(widget.usuarioId)
           .update({
-            // Nome não é atualizado, apenas contato, senha e foto
             'telefone': _telefoneCtrl.text,
-            'senha': _senhaCtrl.text,
+            'senha':
+                _senhaCtrl.text, // A senha é atualizada apenas se foi editada
             'fotoUrl': linkFotoFinal,
             'endereco': {
               'rua': _ruaCtrl.text,
@@ -416,6 +568,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
             },
           });
 
+      // 3. Informa sucesso e volta para a tela inicial
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -438,6 +591,9 @@ class _TelaPerfilState extends State<TelaPerfil> {
     }
   }
 
+  // ==========================================
+  // INTERFACE DA TELA DE PERFIL
+  // ==========================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -453,10 +609,11 @@ class _TelaPerfilState extends State<TelaPerfil> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ÁREA DA FOTO
+                  // --- ÁREA CIRCULAR DA FOTO ---
                   Center(
                     child: Stack(
-                      alignment: Alignment.bottomRight,
+                      alignment: Alignment
+                          .bottomRight, // Coloca o ícone de câmera no canto inferior direito
                       children: [
                         InkWell(
                           onTap: _mostrarOpcoesFoto,
@@ -471,6 +628,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                                 color: Colors.blue.shade200,
                                 width: 3,
                               ),
+                              // Mostra a foto recém tirada, ou a do banco, ou vazio
                               image: _imagemBytes != null
                                   ? DecorationImage(
                                       image: MemoryImage(_imagemBytes!),
@@ -498,6 +656,8 @@ class _TelaPerfilState extends State<TelaPerfil> {
                                 : null,
                           ),
                         ),
+
+                        // Ícone da Câmera por cima da foto (Para deixar óbvio que é editável)
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: const BoxDecoration(
@@ -516,7 +676,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   const SizedBox(height: 32),
 
                   // ==========================================
-                  // 1. DADOS PESSOAIS
+                  // BLOCO 1: DADOS PESSOAIS
                   // ==========================================
                   const Text(
                     'Identificação',
@@ -529,22 +689,24 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   const Divider(),
                   const SizedBox(height: 8),
 
-                  // Nome Completo (Apenas visualização, bloqueado)
+                  // NOME E LOGIN SÃO PROTEGIDOS (Read Only). O utilizador não pode mudar o próprio nome, só a Secretaria.
                   TextFormField(
                     controller: _nomeCtrl,
                     readOnly: true,
-                    style: const TextStyle(color: Colors.black54),
+                    style: const TextStyle(
+                      color: Colors.black54,
+                    ), // Texto mais cinza para indicar bloqueio
                     decoration: InputDecoration(
                       labelText: 'Nome Completo',
                       prefixIcon: const Icon(Icons.person_outline),
                       border: const OutlineInputBorder(),
                       filled: true,
-                      fillColor: Colors.grey.shade100,
+                      fillColor:
+                          Colors.grey.shade100, // Fundo cinza indica bloqueio
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // Login (Apenas visualização, bloqueado)
                   TextFormField(
                     controller: _loginCtrl,
                     readOnly: true,
@@ -559,6 +721,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   ),
                   const SizedBox(height: 16),
 
+                  // TELEFONE PODE EDITAR
                   TextFormField(
                     controller: _telefoneCtrl,
                     inputFormatters: [_mascaraTelefone],
@@ -572,7 +735,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   const SizedBox(height: 32),
 
                   // ==========================================
-                  // 2. ENDEREÇO
+                  // BLOCO 2: ENDEREÇO
                   // ==========================================
                   const Text(
                     'Endereço',
@@ -585,10 +748,11 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   const Divider(),
                   const SizedBox(height: 8),
 
+                  // Rua e Número (Na mesma linha usando Row + Expanded)
                   Row(
                     children: [
                       Expanded(
-                        flex: 2,
+                        flex: 2, // A rua ocupa 2 partes de espaço
                         child: TextFormField(
                           controller: _ruaCtrl,
                           decoration: const InputDecoration(
@@ -599,7 +763,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        flex: 1,
+                        flex: 1, // O número ocupa 1 parte
                         child: TextFormField(
                           controller: _numeroCtrl,
                           decoration: const InputDecoration(
@@ -612,6 +776,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   ),
                   const SizedBox(height: 16),
 
+                  // Bairro e Cidade (Metade para cada)
                   Row(
                     children: [
                       Expanded(
@@ -637,6 +802,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   ),
                   const SizedBox(height: 16),
 
+                  // Ponto de Referência
                   TextFormField(
                     controller: _referenciaCtrl,
                     decoration: const InputDecoration(
@@ -647,7 +813,7 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   const SizedBox(height: 32),
 
                   // ==========================================
-                  // 3. SEGURANÇA E SENHA
+                  // BLOCO 3: SEGURANÇA E SENHA
                   // ==========================================
                   const Text(
                     'Segurança',
@@ -660,16 +826,18 @@ class _TelaPerfilState extends State<TelaPerfil> {
                   const Divider(),
                   const SizedBox(height: 8),
 
+                  // Campo de Senha
                   TextFormField(
                     controller: _senhaCtrl,
-                    obscureText: !_mostrarSenha,
+                    obscureText: !_mostrarSenha, // Esconde os caracteres (***)
                     readOnly:
-                        !_editandoSenha, // Fica bloqueado até clicar em Alterar
+                        !_editandoSenha, // Fica bloqueado até clicar no botão "Alterar"
                     decoration: InputDecoration(
                       labelText: 'Sua Senha de Acesso',
                       prefixIcon: const Icon(Icons.lock_outline),
                       border: const OutlineInputBorder(),
-                      filled: !_editandoSenha,
+                      filled:
+                          !_editandoSenha, // Fundo cinza se não estiver editando
                       fillColor: _editandoSenha
                           ? Colors.white
                           : Colors.grey.shade100,
@@ -680,23 +848,25 @@ class _TelaPerfilState extends State<TelaPerfil> {
                               : Icons.visibility,
                           color: _editandoSenha ? Colors.blue : Colors.grey,
                         ),
+                        // Mostra e oculta os caracteres da senha
                         onPressed: () =>
                             setState(() => _mostrarSenha = !_mostrarSenha),
                       ),
                     ),
                   ),
 
-                  // Botão de Alterar Senha (some quando clicado)
+                  // Botão "Alterar Senha" (Desaparece depois que é clicado)
                   if (!_editandoSenha) ...[
                     const SizedBox(height: 8),
                     Align(
-                      alignment: Alignment.centerRight,
+                      alignment: Alignment
+                          .centerRight, // Empurra o botão para a direita
                       child: TextButton.icon(
                         onPressed: () {
+                          // Libera a edição e mostra a senha para a pessoa saber o que está digitando
                           setState(() {
                             _editandoSenha = true;
-                            _mostrarSenha =
-                                true; // Revela para a pessoa ver o que está digitando
+                            _mostrarSenha = true;
                           });
                         },
                         icon: const Icon(Icons.edit, size: 18),
@@ -710,14 +880,17 @@ class _TelaPerfilState extends State<TelaPerfil> {
 
                   const SizedBox(height: 40),
 
-                  // BOTÃO SALVAR
+                  // ==========================================
+                  // BOTÃO DE SALVAR FINAL
+                  // ==========================================
                   SizedBox(
-                    width: double.infinity,
+                    width: double.infinity, // Ocupa toda a largura
                     height: 50,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                       ),
+                      // Desabilita o botão se estiver salvando, para evitar cliques duplos
                       onPressed: _salvando ? null : _salvarPerfil,
                       icon: _salvando
                           ? const SizedBox(

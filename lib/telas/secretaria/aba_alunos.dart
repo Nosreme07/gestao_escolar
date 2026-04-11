@@ -200,7 +200,6 @@ class _AbaAlunosState extends State<AbaAlunos> {
         ],
       ),
 
-      // BOTÃO NOVO ALUNO RESTAURADO
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
@@ -466,6 +465,25 @@ class TelaDetalhesAluno extends StatelessWidget {
             final pai = resp['pai'] ?? {};
             final saude = dados['saude'] ?? {};
 
+            // ---------------------------------------------------------
+            // LÓGICA CORRIGIDA PARA LER OS IRMÃOS DA NOVA E ANTIGA LISTA
+            // ---------------------------------------------------------
+            String textoIrmaos = '';
+            if (dados['temIrmaoNaEscola'] == true) {
+              if (dados['irmaosVinculados'] != null &&
+                  dados['irmaosVinculados'] is List &&
+                  (dados['irmaosVinculados'] as List).isNotEmpty) {
+                final listaIrmaos = dados['irmaosVinculados'] as List;
+                textoIrmaos = listaIrmaos
+                    .map((i) => i['nome']?.toString() ?? '')
+                    .join(', ');
+              } else if (dados['irmaoVinculado'] != null &&
+                  dados['irmaoVinculado'].toString().isNotEmpty &&
+                  dados['irmaoVinculado'].toString() != 'null') {
+                textoIrmaos = dados['irmaoVinculado'].toString();
+              }
+            }
+
             return Container(
               padding: const EdgeInsets.all(24),
               child: ListView(
@@ -510,12 +528,16 @@ class TelaDetalhesAluno extends StatelessWidget {
                   _linhaDado('Data de Nascimento', dados['dataNascimento']),
                   _linhaDado('Turma', dados['turma']),
                   _linhaDado('Turno', dados['turno']),
+
+                  // EXIBE IRMÃOS NA FICHA
                   _linhaBooleano(
                     'Possui irmão na escola?',
                     dados['temIrmaoNaEscola'],
                   ),
-                  if (dados['temIrmaoNaEscola'] == true)
-                    _linhaDado('Irmão vinculado', dados['irmaoVinculado']),
+                  if (dados['temIrmaoNaEscola'] == true &&
+                      textoIrmaos.isNotEmpty)
+                    _linhaDado('Irmão(s) vinculado(s)', textoIrmaos),
+
                   const SizedBox(height: 16),
 
                   _tituloSecao('2. Endereço'),
@@ -629,6 +651,23 @@ class TelaDetalhesAluno extends StatelessWidget {
       final dataHora =
           '${hoje.day.toString().padLeft(2, '0')}/${hoje.month.toString().padLeft(2, '0')}/${hoje.year} às ${hoje.hour.toString().padLeft(2, '0')}:${hoje.minute.toString().padLeft(2, '0')}';
 
+      // LÓGICA PARA LER OS IRMÃOS PARA O PDF
+      String textoIrmaosPdf = '';
+      if (dados['temIrmaoNaEscola'] == true) {
+        if (dados['irmaosVinculados'] != null &&
+            dados['irmaosVinculados'] is List &&
+            (dados['irmaosVinculados'] as List).isNotEmpty) {
+          final listaIrmaos = dados['irmaosVinculados'] as List;
+          textoIrmaosPdf = listaIrmaos
+              .map((i) => i['nome']?.toString() ?? '')
+              .join(', ');
+        } else if (dados['irmaoVinculado'] != null &&
+            dados['irmaoVinculado'].toString().isNotEmpty &&
+            dados['irmaoVinculado'].toString() != 'null') {
+          textoIrmaosPdf = dados['irmaoVinculado'].toString();
+        }
+      }
+
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
@@ -688,6 +727,14 @@ class TelaDetalhesAluno extends StatelessWidget {
                           'Turma: ${dados['turma'] ?? '-'} | Turno: ${dados['turno'] ?? '-'}',
                         ),
                         pw.Text('Sexo: ${dados['sexo'] ?? '-'}'),
+
+                        // IRMÃOS NO PDF
+                        pw.Text(
+                          'Possui irmão na escola? ${dados['temIrmaoNaEscola'] == true ? 'Sim' : 'Não'}',
+                        ),
+                        if (dados['temIrmaoNaEscola'] == true &&
+                            textoIrmaosPdf.isNotEmpty)
+                          pw.Text('Irmão(s) vinculado(s): $textoIrmaosPdf'),
                       ],
                     ),
                   ),

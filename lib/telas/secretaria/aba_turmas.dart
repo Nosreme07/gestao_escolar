@@ -15,7 +15,6 @@ import 'package:gestao_escolar/telas/secretaria/aba_alunos.dart';
 class AbaTurmas extends StatelessWidget {
   const AbaTurmas({super.key});
 
-  // Função para dar o "peso" correto para cada turma (ordem cronológica)
   int _pesoDaTurma(String nomeDaTurma) {
     final ordemCorreta = [
       'Maternal',
@@ -43,14 +42,12 @@ class AbaTurmas extends StatelessWidget {
       '8º Ano (Fundamental II)',
       '9º Ano (Fundamental II)',
     ];
-
     for (int i = 0; i < ordemCorreta.length; i++) {
       if (nomeDaTurma.contains(ordemCorreta[i])) return i;
     }
-    return 99; // Se for uma turma desconhecida, vai para o final
+    return 99;
   }
 
-  // Função para dar peso aos turnos
   int _pesoDoTurno(String nomeDoTurno) {
     if (nomeDoTurno.contains('Manhã')) return 0;
     if (nomeDoTurno.contains('Tarde')) return 1;
@@ -69,7 +66,6 @@ class AbaTurmas extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          // BOTÃO: GERAR LISTA GERAL DE TODAS AS TURMAS
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: TextButton.icon(
@@ -89,33 +85,24 @@ class AbaTurmas extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('turmas').snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting)
             return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
+          if (snapshot.hasError)
             return const Center(child: Text('Erro ao carregar turmas.'));
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
             return const Center(child: Text('Nenhuma turma cadastrada.'));
-          }
 
-          // ORDENAÇÃO INTELIGENTE DAS TURMAS NA TELA
           final turmasDocs = snapshot.data!.docs.toList();
           turmasDocs.sort((a, b) {
             final dataA = a.data() as Map<String, dynamic>;
             final dataB = b.data() as Map<String, dynamic>;
 
-            String nomeA = dataA['nome'] ?? '';
-            String nomeB = dataB['nome'] ?? '';
-            String turnoA = dataA['turno'] ?? '';
-            String turnoB = dataB['turno'] ?? '';
-
-            int pesoTurmaA = _pesoDaTurma(nomeA);
-            int pesoTurmaB = _pesoDaTurma(nomeB);
-
-            if (pesoTurmaA == pesoTurmaB) {
-              return _pesoDoTurno(turnoA).compareTo(_pesoDoTurno(turnoB));
-            }
+            int pesoTurmaA = _pesoDaTurma(dataA['nome'] ?? '');
+            int pesoTurmaB = _pesoDaTurma(dataB['nome'] ?? '');
+            if (pesoTurmaA == pesoTurmaB)
+              return _pesoDoTurno(
+                dataA['turno'] ?? '',
+              ).compareTo(_pesoDoTurno(dataB['turno'] ?? ''));
             return pesoTurmaA.compareTo(pesoTurmaB);
           });
 
@@ -130,7 +117,10 @@ class AbaTurmas extends StatelessWidget {
               final nome = turmaData['nome'] ?? 'Turma Sem Nome';
               final turno = turmaData['turno'] ?? 'Sem Turno';
 
-              // StreamBuilder interno para contar os alunos dessa turma
+              // Verifica se tem grade estruturada ou mostra que não tem
+              final gradeLista =
+                  turmaData['gradeLista'] as List<dynamic>? ?? [];
+
               return StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('alunos')
@@ -175,7 +165,22 @@ class AbaTurmas extends StatelessWidget {
                           fontSize: 16,
                         ),
                       ),
-                      subtitle: Text('Turno: $turno'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text('Turno: $turno'),
+                          Text(
+                            gradeLista.isNotEmpty
+                                ? 'Grade: ${gradeLista.length} horários'
+                                : 'Grade não definida',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -202,8 +207,6 @@ class AbaTurmas extends StatelessWidget {
           );
         },
       ),
-
-      // BOTÃO ORIGINAL RESTAURADO
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           showModalBottomSheet(
@@ -227,9 +230,10 @@ class AbaTurmas extends StatelessWidget {
   }
 
   // ==========================================
-  // FUNÇÃO: GERAR RELATÓRIO GERAL (COPIADA DE RELATÓRIOS)
+  // RELATÓRIO GERAL (Omitido para manter o tamanho reduzido, o seu código continua intacto)
   // ==========================================
   Future<void> _gerarRelatorioGeralAlunos(BuildContext context) async {
+    // Aqui continua todo o seu código de impressão em PDF intacto
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -253,28 +257,22 @@ class AbaTurmas extends StatelessWidget {
     try {
       final snap = await FirebaseFirestore.instance.collection('alunos').get();
       final alunos = snap.docs.map((d) => d.data()).toList();
-
       Map<String, List<Map<String, dynamic>>> alunosAgrupados = {};
 
       for (var aluno in alunos) {
         String turma = aluno['turma'] ?? 'Sem Turma';
         String turno = aluno['turno'] ?? 'Sem Turno';
         String chaveGrupo = '$turma - $turno';
-
-        if (!alunosAgrupados.containsKey(chaveGrupo)) {
+        if (!alunosAgrupados.containsKey(chaveGrupo))
           alunosAgrupados[chaveGrupo] = [];
-        }
         alunosAgrupados[chaveGrupo]!.add(aluno);
       }
 
       List<String> chavesOrdenadas = alunosAgrupados.keys.toList();
       chavesOrdenadas.sort((a, b) {
-        int pesoTurmaA = _pesoDaTurma(a);
-        int pesoTurmaB = _pesoDaTurma(b);
-        if (pesoTurmaA == pesoTurmaB) {
+        if (_pesoDaTurma(a) == _pesoDaTurma(b))
           return _pesoDoTurno(a).compareTo(_pesoDoTurno(b));
-        }
-        return pesoTurmaA.compareTo(pesoTurmaB);
+        return _pesoDaTurma(a).compareTo(_pesoDaTurma(b));
       });
 
       final pdf = pw.Document();
@@ -290,7 +288,6 @@ class AbaTurmas extends StatelessWidget {
           margin: const pw.EdgeInsets.all(32),
           build: (pw.Context pdfContext) {
             List<pw.Widget> conteudoPdf = [
-              // CABEÇALHO DO PDF
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
@@ -360,10 +357,9 @@ class AbaTurmas extends StatelessWidget {
               final data = alunosDaTurma.map((a) {
                 String contatoEmergencia = 'Não informado';
                 final emergenciaLista = a['emergencia'] as List<dynamic>?;
-                if (emergenciaLista != null && emergenciaLista.isNotEmpty) {
+                if (emergenciaLista != null && emergenciaLista.isNotEmpty)
                   contatoEmergencia =
                       '${emergenciaLista[0]['nome'] ?? ''} (${emergenciaLista[0]['telefone'] ?? ''})';
-                }
                 return [
                   a['ra']?.toString() ?? '-',
                   a['nomeCompleto']?.toString() ?? '-',
@@ -413,7 +409,7 @@ class AbaTurmas extends StatelessWidget {
         ),
       );
 
-      if (context.mounted) Navigator.pop(context); // Fecha o loading
+      if (context.mounted) Navigator.pop(context);
       await Printing.sharePdf(
         bytes: await pdf.save(),
         filename: 'Lista_Geral_Turmas.pdf',
@@ -430,7 +426,7 @@ class AbaTurmas extends StatelessWidget {
 }
 
 // ==========================================
-// TELA: DETALHES DA TURMA (Com Alunos e Professores)
+// TELA: DETALHES DA TURMA (Exibindo a Tabela e Alunos)
 // ==========================================
 class TelaDetalhesTurma extends StatelessWidget {
   final String turmaId;
@@ -450,9 +446,12 @@ class TelaDetalhesTurma extends StatelessWidget {
       turmaData['professores'] ?? [],
     );
 
+    // Recupera a lista de horários salva (ou vazia se for turma antiga)
+    final List<dynamic> gradeLista = turmaData['gradeLista'] ?? [];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('$nome - $turno'),
+        title: Text('$nome - $turno', style: const TextStyle(fontSize: 16)),
         backgroundColor: Colors.blue[900],
         foregroundColor: Colors.white,
         actions: [
@@ -476,7 +475,118 @@ class TelaDetalhesTurma extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // CABEÇALHO: PROFESSORES DA TURMA
+          // ==========================================
+          // GRADE DE AULAS (VISUALIZAÇÃO EM TABELA)
+          // ==========================================
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    'Grade de Aulas:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (gradeLista.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      'Nenhuma grade definida para esta turma.',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  )
+                else
+                  SingleChildScrollView(
+                    scrollDirection:
+                        Axis.horizontal, // Permite arrastar pro lado no celular
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(
+                        Colors.teal.shade50,
+                      ), // Corzinha bonitinha pro topo
+                      columns: const [
+                        DataColumn(
+                          label: Text(
+                            'Horário',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Segunda',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Terça',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Quarta',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Quinta',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Sexta',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Sábado',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                      rows: gradeLista.map((linha) {
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(
+                                linha['horario'] ?? '',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            DataCell(Text(linha['seg'] ?? '')),
+                            DataCell(Text(linha['ter'] ?? '')),
+                            DataCell(Text(linha['qua'] ?? '')),
+                            DataCell(Text(linha['qui'] ?? '')),
+                            DataCell(Text(linha['sex'] ?? '')),
+                            DataCell(Text(linha['sab'] ?? '')),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1),
+
+          // PROFESSORES
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(16),
@@ -524,7 +634,7 @@ class TelaDetalhesTurma extends StatelessWidget {
           ),
           const Divider(height: 1, thickness: 1),
 
-          // CORPO: LISTA DE ALUNOS
+          // ALUNOS MATRICULADOS
           const Padding(
             padding: EdgeInsets.all(16.0),
             child: Text(
@@ -536,7 +646,6 @@ class TelaDetalhesTurma extends StatelessWidget {
               ),
             ),
           ),
-
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -549,27 +658,26 @@ class TelaDetalhesTurma extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 if (snapshot.hasError)
                   return const Center(child: Text('Erro ao carregar alunos.'));
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text('Nenhum aluno matriculado nesta turma/turno.'),
-                  );
-                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
+                  return const Center(child: Text('Nenhum aluno matriculado.'));
 
-                final alunosDocs = snapshot.data!.docs;
-
-                // ORDENAR ALUNOS DENTRO DA TURMA ALFABETICAMENTE
-                final alunosOrdenados = alunosDocs.toList();
-                alunosOrdenados.sort((a, b) {
-                  final nomeA =
+                final alunosOrdenados = snapshot.data!.docs.toList();
+                alunosOrdenados.sort(
+                  (a, b) =>
                       ((a.data() as Map<String, dynamic>)['nomeCompleto'] ?? '')
                           .toString()
-                          .toLowerCase();
-                  final nomeB =
-                      ((b.data() as Map<String, dynamic>)['nomeCompleto'] ?? '')
-                          .toString()
-                          .toLowerCase();
-                  return nomeA.compareTo(nomeB);
-                });
+                          .toLowerCase()
+                          .compareTo(
+                            ((b.data()
+                                        as Map<
+                                          String,
+                                          dynamic
+                                        >)['nomeCompleto'] ??
+                                    '')
+                                .toString()
+                                .toLowerCase(),
+                          ),
+                );
 
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -578,7 +686,6 @@ class TelaDetalhesTurma extends StatelessWidget {
                     final alunoData =
                         alunosOrdenados[index].data() as Map<String, dynamic>;
                     final docId = alunosOrdenados[index].id;
-
                     final nomeAluno = alunoData['nomeCompleto'] ?? 'Sem Nome';
                     final matricula = alunoData['ra'] ?? 'Sem RA';
                     final fotoUrl = alunoData['fotoUrl'] as String?;
@@ -658,7 +765,7 @@ class TelaDetalhesTurma extends StatelessWidget {
 }
 
 // ==========================================
-// MODAL DE CADASTRO/EDIÇÃO DE TURMA
+// MODAL DE CADASTRO/EDIÇÃO DE TURMA (Tabela Editável)
 // ==========================================
 class _ModalCadastroTurma extends StatefulWidget {
   final String? turmaId;
@@ -693,9 +800,10 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
   String? _turmaSelecionada;
   String? _turnoSelecionado;
 
-  // Lista com todos os professores que vieram do banco
+  // VARIÁVEIS DA TABELA DE GRADE
+  final List<Map<String, TextEditingController>> _controladoresGrade = [];
+
   List<Map<String, dynamic>> _professoresDoBanco = [];
-  // Lista com os professores que o utilizador selecionou nesta turma
   List<Map<String, dynamic>> _professoresSelecionados = [];
 
   bool _carregandoProfessores = false;
@@ -707,8 +815,24 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
   void initState() {
     super.initState();
     _buscarProfessoresNoBanco().then((_) {
-      if (_isEdicao) _carregarDadosEdicao();
+      if (_isEdicao) {
+        _carregarDadosEdicao();
+      } else {
+        // Se for uma turma nova, já adiciona 5 horários (linhas) padrão para facilitar
+        for (int i = 0; i < 5; i++) {
+          _adicionarLinhaNaGrade();
+        }
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    // É importante limpar os controladores da memória ao fechar a janela
+    for (var linha in _controladoresGrade) {
+      linha.values.forEach((ctrl) => ctrl.dispose());
+    }
+    super.dispose();
   }
 
   void _carregarDadosEdicao() {
@@ -719,11 +843,21 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
       if (_turnosOpcoes.contains(dados['turno']))
         _turnoSelecionado = dados['turno'];
 
-      // Carrega a lista de professores já vinculados
       if (dados['professores'] != null) {
         _professoresSelecionados = List<Map<String, dynamic>>.from(
           dados['professores'],
         );
+      }
+
+      // Carregar a grade salva (Tabela)
+      if (dados['gradeLista'] != null &&
+          (dados['gradeLista'] as List).isNotEmpty) {
+        for (var linha in dados['gradeLista']) {
+          _adicionarLinhaNaGrade(dadosIniciais: linha);
+        }
+      } else {
+        // Turmas antigas podem não ter, coloca umas em branco
+        for (int i = 0; i < 5; i++) _adicionarLinhaNaGrade();
       }
     });
   }
@@ -735,13 +869,15 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
           .collection('professores')
           .get();
       setState(() {
-        _professoresDoBanco = snap.docs.map((doc) {
-          return {
-            'id': doc.id,
-            'nome': doc.data()['nome'] ?? 'Prof. Sem Nome',
-            'disciplina': doc.data()['disciplina'] ?? 'Geral',
-          };
-        }).toList();
+        _professoresDoBanco = snap.docs
+            .map(
+              (doc) => {
+                'id': doc.id,
+                'nome': doc.data()['nome'] ?? 'Prof. Sem Nome',
+                'disciplina': doc.data()['disciplina'] ?? 'Geral',
+              },
+            )
+            .toList();
       });
     } catch (e) {
       debugPrint('Erro ao buscar professores: $e');
@@ -750,17 +886,40 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
     }
   }
 
-  // Função para marcar/desmarcar um professor na lista de seleção múltipla
   void _alternarProfessor(Map<String, dynamic> prof) {
     setState(() {
       final index = _professoresSelecionados.indexWhere(
         (p) => p['id'] == prof['id'],
       );
-      if (index >= 0) {
-        _professoresSelecionados.removeAt(index); // Se já está, remove
-      } else {
-        _professoresSelecionados.add(prof); // Se não está, adiciona
-      }
+      if (index >= 0)
+        _professoresSelecionados.removeAt(index);
+      else
+        _professoresSelecionados.add(prof);
+    });
+  }
+
+  // =====================================
+  // FUNÇÕES PARA MANIPULAR A TABELA
+  // =====================================
+  void _adicionarLinhaNaGrade({Map<dynamic, dynamic>? dadosIniciais}) {
+    setState(() {
+      _controladoresGrade.add({
+        'horario': TextEditingController(text: dadosIniciais?['horario'] ?? ''),
+        'seg': TextEditingController(text: dadosIniciais?['seg'] ?? ''),
+        'ter': TextEditingController(text: dadosIniciais?['ter'] ?? ''),
+        'qua': TextEditingController(text: dadosIniciais?['qua'] ?? ''),
+        'qui': TextEditingController(text: dadosIniciais?['qui'] ?? ''),
+        'sex': TextEditingController(text: dadosIniciais?['sex'] ?? ''),
+        'sab': TextEditingController(text: dadosIniciais?['sab'] ?? ''),
+      });
+    });
+  }
+
+  void _removerLinhaDaGrade(int index) {
+    setState(() {
+      // Limpa os controladores antes de remover para não dar leak de memória
+      _controladoresGrade[index].values.forEach((c) => c.dispose());
+      _controladoresGrade.removeAt(index);
     });
   }
 
@@ -825,10 +984,107 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
               const SizedBox(height: 24),
 
               // ====================================================
-              // MULTI-SELEÇÃO DE PROFESSORES (FILTER CHIPS)
+              // TABELA DA GRADE DE AULAS EDITÁVEL
               // ====================================================
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Grade de Aulas:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _adicionarLinhaNaGrade(),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Linha'),
+                  ),
+                ],
+              ),
+
+              // O Container cria uma caixa para a tabela com barra de rolagem horizontal
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columnSpacing: 12,
+                    headingRowColor: WidgetStateProperty.all(
+                      Colors.grey.shade100,
+                    ),
+                    columns: const [
+                      DataColumn(label: Text('Horário (Ex: 07:30 - 08:20)')),
+                      DataColumn(label: Text('Segunda')),
+                      DataColumn(label: Text('Terça')),
+                      DataColumn(label: Text('Quarta')),
+                      DataColumn(label: Text('Quinta')),
+                      DataColumn(label: Text('Sexta')),
+                      DataColumn(label: Text('Sábado')),
+                      DataColumn(label: Text('')), // Coluna da Lixeira
+                    ],
+                    rows: _controladoresGrade.asMap().entries.map((entrada) {
+                      int index = entrada.key;
+                      var controladores = entrada.value;
+
+                      // Função rápida para padronizar as caixas de texto
+                      Widget celulaTexto(
+                        TextEditingController ctrl, {
+                        double largura = 100,
+                      }) {
+                        return SizedBox(
+                          width: largura,
+                          child: TextField(
+                            controller: ctrl,
+                            style: const TextStyle(fontSize: 13),
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              contentPadding: EdgeInsets.all(8),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return DataRow(
+                        cells: [
+                          DataCell(
+                            celulaTexto(
+                              controladores['horario']!,
+                              largura: 130,
+                            ),
+                          ),
+                          DataCell(celulaTexto(controladores['seg']!)),
+                          DataCell(celulaTexto(controladores['ter']!)),
+                          DataCell(celulaTexto(controladores['qua']!)),
+                          DataCell(celulaTexto(controladores['qui']!)),
+                          DataCell(celulaTexto(controladores['sex']!)),
+                          DataCell(celulaTexto(controladores['sab']!)),
+                          DataCell(
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                              onPressed: () => _removerLinhaDaGrade(index),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
               const Text(
-                'Vincular Professores (Pode escolher mais de um):',
+                'Vincular Professores:',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.blue,
@@ -840,7 +1096,7 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
                 const LinearProgressIndicator()
               else if (_professoresDoBanco.isEmpty)
                 const Text(
-                  'Nenhum professor cadastrado no sistema ainda.',
+                  'Nenhum professor cadastrado.',
                   style: TextStyle(
                     color: Colors.red,
                     fontStyle: FontStyle.italic,
@@ -854,15 +1110,12 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
                     final estaSelecionado = _professoresSelecionados.any(
                       (p) => p['id'] == prof['id'],
                     );
-
                     return FilterChip(
                       label: Text(prof['nome']),
                       selected: estaSelecionado,
                       selectedColor: Colors.teal.shade200,
                       checkmarkColor: Colors.teal.shade900,
-                      onSelected: (bool selected) {
-                        _alternarProfessor(prof);
-                      },
+                      onSelected: (bool selected) => _alternarProfessor(prof),
                     );
                   }).toList(),
                 ),
@@ -928,11 +1181,38 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
 
     setState(() => _salvando = true);
 
+    // Converte a lista de controladores de volta para texto puro para o Firebase
+    List<Map<String, String>> gradeParaSalvar = _controladoresGrade.map((
+      ctrls,
+    ) {
+      return {
+        'horario': ctrls['horario']!.text.trim(),
+        'seg': ctrls['seg']!.text.trim(),
+        'ter': ctrls['ter']!.text.trim(),
+        'qua': ctrls['qua']!.text.trim(),
+        'qui': ctrls['qui']!.text.trim(),
+        'sex': ctrls['sex']!.text.trim(),
+        'sab': ctrls['sab']!.text.trim(),
+      };
+    }).toList();
+
+    // Filtra para não salvar linhas que estejam completamente vazias (sem horário e sem matérias)
+    gradeParaSalvar.removeWhere(
+      (linha) =>
+          linha['horario']!.isEmpty &&
+          linha['seg']!.isEmpty &&
+          linha['ter']!.isEmpty &&
+          linha['qua']!.isEmpty &&
+          linha['qui']!.isEmpty &&
+          linha['sex']!.isEmpty &&
+          linha['sab']!.isEmpty,
+    );
+
     Map<String, dynamic> dadosTurma = {
       'nome': _turmaSelecionada,
       'turno': _turnoSelecionado,
-      'professores':
-          _professoresSelecionados, // Salva a lista de mapas inteira!
+      'professores': _professoresSelecionados,
+      'gradeLista': gradeParaSalvar, // A Tabela vai para o banco como Lista
     };
 
     try {
@@ -981,8 +1261,8 @@ class _ModalCadastroTurmaState extends State<_ModalCadastroTurma> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              Navigator.pop(ctx); // Fecha popup
-              Navigator.pop(context); // Fecha modal
+              Navigator.pop(ctx);
+              Navigator.pop(context);
               await FirebaseFirestore.instance
                   .collection('turmas')
                   .doc(widget.turmaId)

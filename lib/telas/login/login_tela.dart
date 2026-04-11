@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gestao_escolar/nucleo/cores.dart';
 import 'package:gestao_escolar/telas/tela_principal.dart'; // Tela onde ficam as 4 pastas/módulos
 // Se já tiver a tela do professor criada, deixe o import. Se der erro, comente.
-// import 'package:gestao_escolar/telas/professor/inicio_professor_tela.dart';
+import 'package:gestao_escolar/telas/professor/inicio_professor_tela.dart';
 
 class LoginTela extends StatefulWidget {
   const LoginTela({super.key});
@@ -215,7 +215,12 @@ class _LoginTelaState extends State<LoginTela> {
 
       case 'Professor':
         // Quando for para a tela do professor, lembre de passar o ID assim:
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => InicioProfessorTela(usuarioId: docId)));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => InicioProfessorTela(usuarioId: docId),
+          ),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Navegando para o painel do Professor...'),

@@ -51,8 +51,10 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   String _sexo = 'Masculino';
   String? _turmaSelecionada;
   String? _turnoSelecionado;
+
+  // --- VARIÁVEIS DE IRMÃOS ---
   bool _temIrmao = false;
-  String? _irmaoSelecionado;
+  List<Map<String, dynamic>> _irmaosSelecionados = [];
 
   final List<String> _turmas = [
     'Maternal',
@@ -73,17 +75,12 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   ];
   final List<String> _turnos = ['Manhã', 'Tarde', 'Noite'];
 
-  final List<String> _alunosCadastradosMock = [
-    '2025001 - João Silva',
-    '2025089 - Maria Souza',
-  ];
-
-  // --- ENDEREÇO COM PONTO DE REFERÊNCIA ---
+  // --- ENDEREÇO ---
   final _ruaCtrl = TextEditingController();
   final _numeroCtrl = TextEditingController();
   final _bairroCtrl = TextEditingController();
   final _cidadeCtrl = TextEditingController();
-  final _referenciaCtrl = TextEditingController(); // NOVO CAMPO
+  final _referenciaCtrl = TextEditingController();
 
   String _responsavelFinanceiro = 'Mãe';
   bool _podeSairSozinho = false;
@@ -132,6 +129,18 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
           _turnoSelecionado = dados['turno'];
         _temIrmao = dados['temIrmaoNaEscola'] ?? false;
         _fotoUrlExistente = dados['fotoUrl'];
+
+        if (dados['irmaosVinculados'] != null &&
+            dados['irmaosVinculados'] is List) {
+          _irmaosSelecionados = List<Map<String, dynamic>>.from(
+            dados['irmaosVinculados'],
+          );
+        } else if (dados['irmaoVinculado'] != null &&
+            dados['irmaoVinculado'].toString().isNotEmpty) {
+          _irmaosSelecionados = [
+            {'id': '', 'nome': dados['irmaoVinculado']},
+          ];
+        }
       });
 
       final endereco = dados['endereco'] ?? {};
@@ -139,8 +148,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
       _numeroCtrl.text = endereco['numero'] ?? '';
       _bairroCtrl.text = endereco['bairro'] ?? '';
       _cidadeCtrl.text = endereco['cidade'] ?? '';
-      _referenciaCtrl.text =
-          endereco['pontoReferencia'] ?? ''; // CARREGANDO NOVO CAMPO
+      _referenciaCtrl.text = endereco['pontoReferencia'] ?? '';
 
       final responsaveis = dados['responsaveis'] ?? {};
       setState(() {
@@ -507,6 +515,10 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
             onChanged: (v) => setState(() => _turnoSelecionado = v),
           ),
           const SizedBox(height: 24),
+
+          // ==========================================
+          // BUSCA DE IRMÃOS
+          // ==========================================
           const Text(
             'O aluno tem algum irmão na escola?',
             style: TextStyle(color: Colors.grey, fontSize: 14),
@@ -523,22 +535,74 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
               Radio(
                 value: false,
                 groupValue: _temIrmao,
-                onChanged: (v) => setState(() => _temIrmao = v as bool),
+                onChanged: (v) {
+                  setState(() {
+                    _temIrmao = v as bool;
+                    if (!_temIrmao) _irmaosSelecionados.clear();
+                  });
+                },
               ),
               const Text('Não'),
             ],
           ),
+
           if (_temIrmao) ...[
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _irmaoSelecionado,
-              decoration: const InputDecoration(
-                labelText: 'Selecione o irmão cadastrado',
+            if (_irmaosSelecionados.isNotEmpty)
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 4.0,
+                children: _irmaosSelecionados.map((irmao) {
+                  return Chip(
+                    backgroundColor: Colors.blue.shade50,
+                    label: Text(
+                      irmao['nome'] ?? 'Sem nome',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    onDeleted: () {
+                      setState(() {
+                        _irmaosSelecionados.remove(irmao);
+                      });
+                    },
+                  );
+                }).toList(),
               ),
-              items: _alunosCadastradosMock
-                  .map((a) => DropdownMenuItem(value: a, child: Text(a)))
-                  .toList(),
-              onChanged: (v) => setState(() => _irmaoSelecionado = v),
+            const SizedBox(height: 8),
+
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.blue[900],
+                side: BorderSide(color: Colors.blue.shade900),
+              ),
+              onPressed: () async {
+                final selecionados =
+                    await showModalBottomSheet<List<Map<String, dynamic>>>(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
+                      ),
+                      builder: (_) => _ModalBuscaIrmaos(
+                        alunoAtualId: widget.alunoIdAEditar,
+                      ),
+                    );
+
+                if (selecionados != null) {
+                  setState(() {
+                    for (var novoIrmao in selecionados) {
+                      if (!_irmaosSelecionados.any(
+                        (i) => i['id'] == novoIrmao['id'],
+                      )) {
+                        _irmaosSelecionados.add(novoIrmao);
+                      }
+                    }
+                  });
+                }
+              },
+              icon: const Icon(Icons.search),
+              label: const Text('Buscar e Adicionar Irmão'),
             ),
           ],
         ],
@@ -585,7 +649,6 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
             decoration: const InputDecoration(labelText: 'Cidade'),
           ),
           const SizedBox(height: 16),
-          // --- NOVO CAMPO: PONTO DE REFERÊNCIA ---
           TextFormField(
             controller: _referenciaCtrl,
             decoration: const InputDecoration(
@@ -883,7 +946,7 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
   }
 
   // ==========================================
-  // SALVAMENTO NO FIREBASE (TEXTO E IMAGEM)
+  // SALVAMENTO NO FIREBASE E GERAÇÃO DE RA SEQUENCIAL
   // ==========================================
   void _finalizarMatricula() async {
     setState(() => _estaSalvando = true);
@@ -905,13 +968,43 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
       String docId = widget.alunoIdAEditar ?? "";
       String raFinal = "";
 
+      // ==========================================
+      // LÓGICA DE MATRÍCULA (RA) SEQUENCIAL E ANUAL
+      // ==========================================
       if (!isEdicao) {
-        final anoAtual = DateTime.now().year;
-        final sequencial = (DateTime.now().millisecondsSinceEpoch % 10000)
-            .toString()
-            .padLeft(4, '0');
-        raFinal = "$anoAtual$sequencial";
-        docId = raFinal;
+        final anoAtual = DateTime.now().year; // ex: 2026
+
+        // Busca o último aluno cadastrado no banco ordenado pelo RA (do maior para o menor)
+        final snap = await FirebaseFirestore.instance
+            .collection('alunos')
+            .orderBy('ra', descending: true)
+            .limit(1)
+            .get();
+
+        if (snap.docs.isNotEmpty) {
+          final ultimoRa = snap.docs.first['ra']?.toString() ?? '';
+
+          // Verifica se o último RA salvo pertence a este ano (começa com 2026) e tem 8 dígitos
+          if (ultimoRa.startsWith(anoAtual.toString()) &&
+              ultimoRa.length >= 8) {
+            // Pega apenas a parte do sequencial (os 4 últimos dígitos)
+            final sequencialStr = ultimoRa.substring(4);
+            final sequencialInt = int.tryParse(sequencialStr) ?? 0;
+            final proximoSequencial = sequencialInt + 1; // Soma +1
+
+            raFinal =
+                '$anoAtual${proximoSequencial.toString().padLeft(4, '0')}';
+          } else {
+            // Se não houver alunos neste ano, ou o último for de 2025, recomeça no 0001
+            raFinal = '${anoAtual}0001';
+          }
+        } else {
+          // Se a base de dados estiver completamente vazia
+          raFinal = '${anoAtual}0001';
+        }
+
+        docId =
+            raFinal; // Usamos o próprio RA como ID do documento para facilitar a organização
       } else {
         raFinal = widget.alunoDataAEditar?['ra'] ?? "";
       }
@@ -933,15 +1026,14 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         'turma': _turmaSelecionada,
         'turno': _turnoSelecionado,
         'temIrmaoNaEscola': _temIrmao,
-        'irmaoVinculado': _irmaoSelecionado,
+        'irmaosVinculados': _temIrmao ? _irmaosSelecionados : [],
         'fotoUrl': linkFotoFinal,
         'endereco': {
           'rua': _ruaCtrl.text,
           'numero': _numeroCtrl.text,
           'bairro': _bairroCtrl.text,
           'cidade': _cidadeCtrl.text,
-          'pontoReferencia':
-              _referenciaCtrl.text, // --- SALVANDO NOVO CAMPO ---
+          'pontoReferencia': _referenciaCtrl.text,
         },
         'responsaveis': {
           'responsavelFinanceiro': _responsavelFinanceiro,
@@ -1016,5 +1108,177 @@ class _CadastroAlunoTelaState extends State<CadastroAlunoTela> {
         ),
       );
     }
+  }
+}
+
+// ==========================================
+// TELA (MODAL) PARA BUSCAR E SELECIONAR IRMÃOS
+// ==========================================
+class _ModalBuscaIrmaos extends StatefulWidget {
+  final String? alunoAtualId;
+
+  const _ModalBuscaIrmaos({this.alunoAtualId});
+
+  @override
+  State<_ModalBuscaIrmaos> createState() => _ModalBuscaIrmaosState();
+}
+
+class _ModalBuscaIrmaosState extends State<_ModalBuscaIrmaos> {
+  String _termoBusca = '';
+  final List<Map<String, dynamic>> _selecionadosNestaTela = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, controller) {
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar irmão por Nome ou RA',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (val) {
+                        setState(() {
+                          _termoBusca = val.toLowerCase();
+                        });
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('alunos')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(
+                      child: Text('Nenhum aluno cadastrado no sistema.'),
+                    );
+                  }
+
+                  var docs = snapshot.data!.docs.where((d) {
+                    if (d.id == widget.alunoAtualId) return false;
+
+                    final data = d.data() as Map<String, dynamic>;
+                    final nome = (data['nomeCompleto'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    final ra = (data['ra'] ?? '').toString().toLowerCase();
+                    return nome.contains(_termoBusca) ||
+                        ra.contains(_termoBusca);
+                  }).toList();
+
+                  docs.sort((a, b) {
+                    final nomeA =
+                        ((a.data() as Map<String, dynamic>)['nomeCompleto'] ??
+                                '')
+                            .toString()
+                            .toLowerCase();
+                    final nomeB =
+                        ((b.data() as Map<String, dynamic>)['nomeCompleto'] ??
+                                '')
+                            .toString()
+                            .toLowerCase();
+                    return nomeA.compareTo(nomeB);
+                  });
+
+                  if (docs.isEmpty) {
+                    return const Center(
+                      child: Text('Nenhum aluno encontrado para esta busca.'),
+                    );
+                  }
+
+                  return ListView.builder(
+                    controller: controller,
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final data = docs[index].data() as Map<String, dynamic>;
+                      final docId = docs[index].id;
+                      final nome = data['nomeCompleto'] ?? 'Sem Nome';
+                      final ra = data['ra'] ?? 'Sem RA';
+                      final turma = data['turma'] ?? '-';
+
+                      final isSelected = _selecionadosNestaTela.any(
+                        (s) => s['id'] == docId,
+                      );
+
+                      return CheckboxListTile(
+                        title: Text(
+                          nome,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text('Matrícula: $ra | Turma: $turma'),
+                        value: isSelected,
+                        activeColor: Colors.blue[900],
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selecionadosNestaTela.add({
+                                'id': docId,
+                                'nome': nome,
+                                'ra': ra,
+                              });
+                            } else {
+                              _selecionadosNestaTela.removeWhere(
+                                (s) => s['id'] == docId,
+                              );
+                            }
+                          });
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[900],
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context, _selecionadosNestaTela);
+                  },
+                  child: Text(
+                    'ADICIONAR ${_selecionadosNestaTela.length} IRMÃO(S)',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
